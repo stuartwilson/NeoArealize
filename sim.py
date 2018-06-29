@@ -5,8 +5,8 @@ from math import *
 import numpy as np
 
 basePort = 8000
-worlds = [P.pTemp('processes/sim/build','world00','logs/log00',1,basePort+0),
-          P.pTemp('processes/sim/build','world01','logs/log01',2,basePort+1)]
+worlds = [P.pTemp('build/sim','world00','logs/log00',1,basePort+0),
+          P.pTemp('build/sim','world01','logs/log01',2,basePort+1)]
 
 Dn = np.array([100.,5.])
 Dc = np.array([100.*0.3,5.*0.3])

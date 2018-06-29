@@ -46,9 +46,7 @@ else()
     "You can set MORPH_LIB with `cmake -DMORPH_LIB=/pathto/lib` ...")
 endif()
 
-# The main process executable
-add_executable(process process.cpp)
-target_link_libraries(process ${MORPH_LDFLAGS})
+add_subdirectory(sim)
 
 # For debugging of variables:
 set(DEBUG_VARIABLES ON)
