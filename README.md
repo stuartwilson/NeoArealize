@@ -1,2 +1,3 @@
 # NeoArealize
-Neo-cortex arealization modelling
+
+A model of reaction-diffusion pattern formation in neocortex.
