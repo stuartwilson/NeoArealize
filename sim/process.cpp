@@ -9,24 +9,26 @@
 
 using namespace std;
 
-class Erm2009
+class ReactDiff
 {
 public:
     int scale;
     int offset;
     int n;
     double DR;
+    int nFields; // Number of competing reaction-diffusion systems
 
     vector<vector<double> > X; //
     vector<vector<double> > H; // hex-grid info
     vector<vector<double> > N; // hex neighbourhood
     vector<int> C;
 
-    vector<double> NN, CC;
-    Erm2009 (int scale, int offset, double z) {
+    vector<vector<double> > NN, CC;
+    ReactDiff (int scale, int offset, double z, int numFields) {
 
         this->scale = scale;
         this->offset = offset;
+        this->nFields = numFields;
 
         H.resize(6);
         int S = pow(2.0, scale-1) - offset;
@@ -95,8 +97,12 @@ public:
             X[i][0] = H[0][i];
             X[i][1] = H[1][i];
         }
-        NN.resize(n);
-        CC.resize(n);
+        NN.resize(nFields);
+        CC.resize(nFields);
+        for (int i=0; i<nFields; i++) {
+            NN[i].resize(n);
+            CC[i].resize(n);
+        }
     };
 
     vector<double> getLaplacian(vector<double> Q, double dx) {
@@ -108,7 +114,7 @@ public:
         return L;
     }
 
-    void step(double dt, double Dn, double Dc) {
+    void step(double dt, vector<double> Dn, vector<double> Dc) {
 
         // ORIGINAL MASK (a,b,c) OR dr, dg, bd METHOD
         // 100,0.3* coffeebean
@@ -122,90 +128,87 @@ public:
         // double Dc = 0.3*Dn;
 
         double ds = 50.*fabs(H[0][0]-H[0][1]) / 0.75; // SHOULD BE 25.*DR
-#ifdef METHOD_1_OR_2
-        double over4dsSquared = 1./(4.*ds*ds);
-#endif
         double beta = 5.;
-        double a = 1., b = 1., mu = 1., chi = Dn;
+        double b = 1., mu = 1.;
+        vector<double> chi = Dn;
 
-        vector<double> lapN = getLaplacian(NN,ds);
-        vector<double> lapC = getLaplacian(CC,ds);
-
-        //
-        // 1. https://pdfs.semanticscholar.org/a103/b0ab83e2553bca7db069e4962049c4f3e966.pdf
-        // 2. http://systems-sciences.uni-graz.at/etextbook/sw3/continuousfield.html
-        // 3. http://textbooks.opensuny.org/introduction-to-the-modeling-and-analysis-of-complex-systems/
-#ifdef METHOD_1_OR_2
-        double dxN, dyN, dxC, dyC;
-        double ma= 0.22061, mb=0.43174, mc= 0.37665; // mask for gradient on hex (ref 1 above) (ref 2/3 above)
-#endif
-        vector<double> G(n,0.);
-
-        for (int i=0;i<n;i++) {
-#ifdef METHOD_1
-            dxN = mb*NN[N[i][0]]+ma*NN[N[i][1]]-ma*NN[N[i][2]]-mb*NN[N[i][3]]-ma*NN[N[i][4]]+ma*NN[N[i][5]];
-            dyN = mc*NN[N[i][1]]+mc*NN[N[i][2]]-mc*NN[N[i][4]]-mc*NN[N[i][5]];
-            dxC = mb*CC[N[i][0]]+ma*CC[N[i][1]]-ma*CC[N[i][2]]-mb*CC[N[i][3]]-ma*CC[N[i][4]]+ma*CC[N[i][5]];
-            dyC = mc*CC[N[i][1]]+mc*CC[N[i][2]]-mc*CC[N[i][4]]-mc*CC[N[i][5]];
-            G[i] = (dxN*dxC+dyN*dyC)*over4dsSquared + NN[i]*lapC[i];
-#endif
-#ifdef METHOD_2
-            double h1N = NN[N[i][1]]+NN[N[i][2]]-NN[N[i][4]]-NN[N[i][5]];
-            double h2N = NN[N[i][0]]+NN[N[i][1]]-NN[N[i][3]]-NN[N[i][4]];
-            double h3N = NN[N[i][2]]+NN[N[i][3]]-NN[N[i][5]]-NN[N[i][0]];
-            double h1C = CC[N[i][1]]+CC[N[i][2]]-CC[N[i][4]]-CC[N[i][5]];
-            double h2C = CC[N[i][0]]+CC[N[i][1]]-CC[N[i][3]]-CC[N[i][4]];
-            double h3C = CC[N[i][2]]+CC[N[i][3]]-CC[N[i][5]]-CC[N[i][0]];
-            dxN = h1N;
-            dyN = h2N-h3N;
-            dxC = h1C;
-            dyC = h2C-h3C;
-            G[i] = (dxN*dxC+dyN*dyC)*over4dsSquared + NN[i]*lapC[i];
-#endif
-
-            // METHOD 3
-            double drN = NN[N[i][0]]-NN[N[i][3]];
-            double dgN = NN[N[i][1]]-NN[N[i][4]];
-            double dbN = NN[N[i][2]]-NN[N[i][5]];
-
-            double drC = CC[N[i][0]]-CC[N[i][3]];
-            double dgC = CC[N[i][1]]-CC[N[i][4]];
-            double dbC = CC[N[i][2]]-CC[N[i][5]];
-
-            G[i] = (drN*drC+dgN*dgC+dbN*dbC)/(6.*ds*ds*ds) + NN[i]*lapC[i];
+        // coupling of fields
+        vector<double> a(n,0.);
+        for (int j=0; j<n; j++) {
+            for (int i=0; i<nFields; i++) {
+                a[j] += CC[i][j];
+            }
+            a[j] = 1.0 - a[j];
         }
 
-        // step N
-        for(int i=0;i<n;i++){
-            NN[i]+=dt*( a-b*NN[i] + Dn*lapN[i] - chi*G[i]);
-        }
+        for (int I=0; I<nFields; I++){
+            vector<double> lapN = getLaplacian(NN[I],ds);
+            vector<double> lapC = getLaplacian(CC[I],ds);
 
-        // step C
-        double N2;
-        for(int i=0;i<n;i++){
-            N2 = NN[i]*NN[i];
-            CC[i]+=dt*( beta*N2/(1.+N2) - mu*CC[i] + Dc*lapC[i] );
-        }
+            // 1. https://pdfs.semanticscholar.org/a103/b0ab83e2553bca7db069e4962049c4f3e966.pdf
+            // 2. http://systems-sciences.uni-graz.at/etextbook/sw3/continuousfield.html
+            // 3. http://textbooks.opensuny.org/introduction-to-the-modeling-and-analysis-of-complex-systems/
 
-        // Enforce no-flux boundary
-        vector<double> CCp = CC;
-        vector<double> NNp = NN;
-        for(int i=0;i<n;i++){
-            if(C[i]<6){
-                double nfC = 0., nfN = 0.;
-                for(int j=0;j<6;j++){
-                    if(N[i][j] !=i){
-                        nfC += CCp[N[i][j]];
-                        nfN += NNp[N[i][j]];
+            vector<double> G(n,0.);
+
+            for (int i=0;i<n;i++) {
+                // METHOD 3
+                double drN = NN[I][N[i][0]]-NN[I][N[i][3]];
+                double dgN = NN[I][N[i][1]]-NN[I][N[i][4]];
+                double dbN = NN[I][N[i][2]]-NN[I][N[i][5]];
+
+                double drC = CC[I][N[i][0]]-CC[I][N[i][3]];
+                double dgC = CC[I][N[i][1]]-CC[I][N[i][4]];
+                double dbC = CC[I][N[i][2]]-CC[I][N[i][5]];
+
+                G[i] = (drN*drC+dgN*dgC+dbN*dbC)/(6.*ds*ds*ds) + NN[I][i]*lapC[i];
+            }
+
+            // step N
+            for(int i=0;i<n;i++){
+                NN[I][i] += dt * (a[i] - b*NN[I][i] + Dn[I]*lapN[i] - chi[I]*G[i]);
+            }
+
+            // step C
+            double N2;
+            for(int i=0;i<n;i++){
+                N2 = NN[I][i] * NN[I][i];
+                CC[I][i] += dt * (beta * N2 / (1.+N2) - mu * CC[I][i] + Dc[I] * lapC[i]);
+            }
+
+            // Enforce no-flux boundary
+            vector<double> CCp = CC[I];
+            vector<double> NNp = NN[I];
+            for (int i=0; i<n; i++) {
+                if (C[i]<6) {
+                    double nfC = 0., nfN = 0.;
+                    for (int j=0; j<6; j++) {
+                        if (N[i][j] !=i) {
+                            nfC += CCp[N[i][j]];
+                            nfN += NNp[N[i][j]];
+                        }
                     }
+                    CC[I][i] = nfC / (double)C[i];
+                    NN[I][i] = nfN / (double)C[i];
                 }
-                CC[i] = nfC / (double)C[i];
-                NN[i] = nfN / (double)C[i];
             }
         }
     }
-}; // Erm2009
+}; // ReactDiff
 
+vector<int> getEdges(double p, vector<double>  P,double c)
+{
+    vector<int> k;
+    if (p<c){
+        if(P[0]>c){ k.push_back(0); }
+        if(P[1]>c){ k.push_back(1); }
+        if(P[2]>c){ k.push_back(2); }
+        if(P[3]>c){ k.push_back(3); }
+        if(P[4]>c){ k.push_back(4); }
+        if(P[5]>c){ k.push_back(5); }
+    }
+    return k;
+}
 
 int main (int argc, char **argv)
 {
@@ -215,7 +218,6 @@ int main (int argc, char **argv)
 
     // INITIALIZATION
     morph::World W(argv[1],argv[2],atoi(argv[3]),atoi(argv[4]),dt);
-    //W.waitForConnection();
 
     // DISPLAYS
     vector<morph::Gdisplay> displays;
@@ -227,15 +229,17 @@ int main (int argc, char **argv)
     displays[0].resetDisplay(fix,eye,rot);
     displays[0].redrawDisplay();
 
-    Erm2009 M(7,0,0.);
-    for (int i=0;i<M.n;i++) {
-        M.NN[i]=(morph::Tools::randFloat())*0.1;
-        M.CC[i]=(morph::Tools::randFloat())*0.1;
+    ReactDiff M(7,0,0.,5);
+    for (int I=0; I<M.nFields; I++) {
+        for (int i=0; i<M.n; i++) {
+            M.NN[I][i]=(morph::Tools::randFloat())*0.1;
+            M.CC[I][i]=(morph::Tools::randFloat())*0.1;
+        }
     }
 
     unsigned int frameN = 0;
-    double Dn = 100.;
-    double Dc = Dn*0.3;
+    vector<double> Dn (M.nFields,100.);
+    vector<double> Dc (M.nFields,100.*0.3);
     double TIME=0.;
     vector <double*> f;
     f.push_back(&TIME);
@@ -243,15 +247,19 @@ int main (int argc, char **argv)
     vector<vector<double*> > S;
     {
         vector<double*> s;
-        for(unsigned int i=0;i<M.CC.size();i++){
-            s.push_back(&M.CC[i]);
-        } S.push_back(s);
+        for(unsigned int I=0;I<M.CC.size();I++){
+            for(unsigned int i=0;i<M.CC[I].size();i++){
+                s.push_back(&M.CC[I][i]);
+            } S.push_back(s);
+        }
     }
     {
         vector<double*> s;
-        for(unsigned int i=0;i<M.NN.size();i++){
-            s.push_back(&M.NN[i]);
-        } S.push_back(s);
+        for(unsigned int I=0;I<M.NN.size();I++){
+            for(unsigned int i=0;i<M.NN[I].size();i++){
+                s.push_back(&M.NN[I][i]);
+            } S.push_back(s);
+        }
     }
 
     bool doing = true;
@@ -325,7 +333,7 @@ int main (int argc, char **argv)
             //W.logfile<<W.processName<<"@"<<TIMEcs<<": 8=DISA"<<endl<<flush;
             displays[0].resetDisplay(fix,eye,rot);
 
-            vector<double> plt = M.NN;
+            vector<double> plt = M.NN[0];
             double maxV = -1e7;
             double minV = +1e7;
             for (int i=0;i<M.n;i++) {
@@ -365,10 +373,10 @@ int main (int argc, char **argv)
         case 4:
         {
             W.logfile<<W.processName<<"@"<<TIMEcs<<": 4=RECD"<<endl<<flush;
-            switch(stoi(command[1]))
-            {
-            case 0: Dn = stod(command[2]); break;
-            case 1: Dc = stod(command[2]); break;
+
+            switch(stoi(command[1])){
+            case 0: Dn[stoi(command[2])] = stod(command[3]); break;
+            case 1: Dc[stoi(command[2])] = stod(command[3]); break;
             }
             break;
         }
@@ -430,6 +438,106 @@ int main (int argc, char **argv)
             }
             break;
         }
+
+        case 7:
+        {//W.logfile<<W.processName<<"@"<<TIMEcs<<": 8=DISA"<<endl<<flush;
+            displays[0].resetDisplay(fix,eye,rot);
+
+
+
+            for(int I=0;I<M.nFields;I++){
+
+                vector<double> contourcol = morph::Tools::getJetColor((double)I/(double)M.nFields);
+
+                vector<double> plt = M.NN[I];
+                double maxV = -1e7;
+                double minV = +1e7;
+                for(int i=0;i<M.n;i++){
+                    if(M.C[i]==6){
+                        if(plt[i]>maxV){maxV = plt[i];}
+                        if(plt[i]<minV){minV = plt[i];}
+                    }
+                }
+                double scaleV = 1./(maxV-minV);
+                vector<double> P(M.n,0.);
+                for(int i=0;i<M.n;i++){
+                    P[i] = fmin(fmax( ((plt[i])-minV)*scaleV,0.),1.);
+                    // M.X[i][2] = P[i];
+                }
+
+                double dh = fabs(M.H[0][0]-M.H[0][1])*0.5;
+
+                for(int i=0;i<M.n;i++){
+
+                    vector <double> cl = morph::Tools::getJetColor(P[i]);
+                    //displays[0].drawHex(M.H[0][i],M.H[1][i],0.,dh,cl[0],cl[1],cl[2]);
+                    //displays[0].drawHex(M.H[0][i],M.H[1][i],0.,dh,cl[0]*0.8,cl[1]*0.8,cl[2]*0.8);
+
+                    vector<double> p(6,0);
+                    p[0] = P[M.N[i][0]];
+                    p[1] = P[M.N[i][1]];
+                    p[2] = P[M.N[i][2]];
+                    p[3] = P[M.N[i][3]];
+                    p[4] = P[M.N[i][4]];
+                    p[5] = P[M.N[i][5]];
+                    vector<int> k1 = getEdges(P[i],p,0.5);
+
+
+                    //k=1;
+                    vector <double> cl2(3,0);
+                    if(I==0){
+                        cl2[0] = 1.;
+                    }
+
+                    for(unsigned int j=0;j<k1.size();j++){
+                        displays[0].drawHexSeg(M.H[0][i],M.H[1][i],0.01,dh,contourcol[0],contourcol[1],contourcol[2],k1[j]);
+                    }
+
+                }
+            }
+            /*
+              for(int i=0;i<M.n;i++){
+              vector <double> cl = tools::getJetColor(P[i]);
+              displays[0].drawTriFill(M.X[i],M.X[M.N[i][0]],M.X[M.N[i][1]],cl);
+              displays[0].drawTriFill(M.X[i],M.X[M.N[i][3]],M.X[M.N[i][4]],cl);
+              }
+            */
+            displays[0].redrawDisplay();
+
+            break;
+        }
+
+        case 8:
+        {//W.logfile<<W.processName<<"@"<<TIMEcs<<": 8=DISA"<<endl<<flush;
+
+            double dh = fabs(M.H[0][0]-M.H[0][1])*0.5;
+
+            displays[0].resetDisplay(fix,eye,rot);
+            for(int i=0;i<M.n;i++){
+                double maxV = -1e7;
+                int maxI = 0;
+                double sel = 0.;
+                for(int I=0;I<M.nFields;I++){
+                    sel += M.NN[I][i];
+                    if(M.NN[I][i]>maxV){
+                        maxV = M.NN[I][i];
+                        maxI = I;
+                    }
+                }
+                sel = maxV/sel;
+                vector<double> cl = morph::Tools::getJetColor((double)maxI/(double)M.nFields);
+                cl[0] *= sel;
+                cl[1] *= sel;
+                cl[2] *= sel;
+
+                displays[0].drawHex(M.H[0][i],M.H[1][i],0.,dh,cl[0],cl[1],cl[2]);
+
+            }
+
+            displays[0].redrawDisplay();
+            break;
+        }
+
         }
     }
 
