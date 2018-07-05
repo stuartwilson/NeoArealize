@@ -48,12 +48,36 @@ public:
 
     int nFields = 1; // Number of competing reaction-diffusion systems
 
+    /*!
+     * Populated with a subset of the data in H.
+     */
     vector<vector<double> > X; //
-    vector<vector<double> > H; // HexData? hex-grid info
-    vector<vector<double> > N; // hex neighbourhood
+
+    /*!
+     * HexData? hex-grid info
+     */
+    vector<vector<double> > H;
+
+    /*!
+     * Neighbourhood information for each hex element.
+     */
+    vector<vector<double> > N;
+
+    /*!
+     *
+     */
     vector<int> C;
 
-    vector<vector<double> > NN, CC;
+    /*!
+     * Contains an N for each of the nFields fields.
+     */
+    vector<vector<double> > NN;
+
+    /*!
+     * Contains a C for each of the nFields fields.
+     */
+    vector<vector<double> > CC;
+
     ReactDiff (int scale, int offset, double z, int numFields) {
 
         cout << "ReactDiff constructor called with scale: " << scale
@@ -182,9 +206,9 @@ public:
             a[j] = 1.0 - a[j];
         }
 
-        for (int I=0; I<nFields; I++){
-            vector<double> lapN = getLaplacian(NN[I],ds);
-            vector<double> lapC = getLaplacian(CC[I],ds);
+        for (int I=0; I<nFields; I++) {
+            vector<double> lapN = getLaplacian (NN[I], ds);
+            vector<double> lapC = getLaplacian (CC[I], ds);
 
             // 1. https://pdfs.semanticscholar.org/a103/b0ab83e2553bca7db069e4962049c4f3e966.pdf
             // 2. http://systems-sciences.uni-graz.at/etextbook/sw3/continuousfield.html
@@ -258,29 +282,29 @@ int main (int argc, char **argv)
     double dt = .0001;            // integration timestep // SHOULD BE 0.001
 
     // INITIALIZATION
-    morph::World W(argv[1],argv[2],atoi(argv[3]),atoi(argv[4]),dt);
+    morph::World W(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]), dt);
 
     // DISPLAYS
     vector<morph::Gdisplay> displays;
-    vector<double>fix(3,0.);
-    vector<double>eye(3,0.);
+    vector<double>fix(3, 0.0);
+    vector<double>eye(3, 0.0);
     eye[2] = -0.4;
-    vector<double>rot(3,0.);
-    displays.push_back (morph::Gdisplay (600, "morphologica", 0., 0., 0.));
-    displays[0].resetDisplay(fix,eye,rot);
+    vector<double>rot(3, 0.0);
+    displays.push_back (morph::Gdisplay (600, "morphologica", 0.0, 0.0, 0.0));
+    displays[0].resetDisplay (fix, eye, rot);
     displays[0].redrawDisplay();
 
-    ReactDiff M(6,0,0.,5);
+    ReactDiff M(6, 0, 0.0, 5);
     for (int I=0; I<M.nFields; I++) {
         for (int i=0; i<M.nHexes; i++) {
-            M.NN[I][i]=(morph::Tools::randFloat())*0.1;
-            M.CC[I][i]=(morph::Tools::randFloat())*0.1;
+            M.NN[I][i]=(morph::Tools::randFloat()) * 0.1;
+            M.CC[I][i]=(morph::Tools::randFloat()) * 0.1;
         }
     }
 
     unsigned int frameN = 0;
-    vector<double> Dn (M.nFields,100.);
-    vector<double> Dc (M.nFields,100.*0.3);
+    vector<double> Dn (M.nFields, 100.0);
+    vector<double> Dc (M.nFields, 100.0 * 0.3);
     double TIME=0.;
     vector <double*> f;
     f.push_back(&TIME);
