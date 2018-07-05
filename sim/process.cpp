@@ -217,8 +217,8 @@ public:
         }
 
         for (int I=0; I<nFields; I++) {
-            vector<double> lapN = getLaplacian (NN[I], ds);
-            vector<double> lapC = getLaplacian (CC[I], ds);
+            vector<double> lapN = this->getLaplacian (NN[I], ds);
+            vector<double> lapC = this->getLaplacian (CC[I], ds);
 
             // 1. https://pdfs.semanticscholar.org/a103/b0ab83e2553bca7db069e4962049c4f3e966.pdf
             // 2. http://systems-sciences.uni-graz.at/etextbook/sw3/continuousfield.html
@@ -299,7 +299,7 @@ int main (int argc, char **argv)
     srand(atoi(argv[3]));
 
     // integration timestep; should be 0.001 to match Ermentrout 2009.
-    double dt = .0001;
+    double dt = .0005;
 
     // INITIALIZATION
     morph::World W(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]), dt);
