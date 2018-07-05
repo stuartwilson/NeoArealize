@@ -224,8 +224,8 @@ public:
             // 2. http://systems-sciences.uni-graz.at/etextbook/sw3/continuousfield.html
             // 3. http://textbooks.opensuny.org/introduction-to-the-modeling-and-analysis-of-complex-systems/
 
-            // G stands for gradient, but G is really gradient of
-            // divergence term in eq 1 in the Ermentrout paper.
+            // G stands for gradient, but G is really the "Chi times gradient of
+            // n(x,t) times gradient of c(x,t)" term in eq 1 in the Ermentrout paper.
             vector<double> G(nHexes, 0.0);
 
             for (int i=0; i<nHexes; i++) {
@@ -238,8 +238,8 @@ public:
                 double dgC = CC[I][N[i][1]] - CC[I][N[i][4]];
                 double dbC = CC[I][N[i][2]] - CC[I][N[i][5]];
 
-                // Possibly one ds too many below (ds^2 not ds^3)
-                G[i] = (drN * drC + dgN * dgC + dbN * dbC) / (6.0 * ds * ds * ds) + NN[I][i] * lapC[i];
+                // Compute gradient of n grad c
+                G[i] = (drN * drC + dgN * dgC + dbN * dbC) / (6.0 * ds * ds) + NN[I][i] * lapC[i];
             }
 
             // step N
