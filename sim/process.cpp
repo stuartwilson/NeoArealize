@@ -12,19 +12,52 @@ using namespace std;
 class ReactDiff
 {
 public:
-    int scale;
-    int offset;
-    int n;
+    /*! This is the "scale of the map" but
+     * might be better named the
+     * resolution. If scale is 7 you get
+     * 12481 hexes as an upper limit (drawing
+     * a circle or other boundary may reduce
+     * this). If scale is 6, you get 3169
+     * hexes to work with. If scale is 8,
+     * then it's 49537.
+     */
+    int scale = 7;
+
+    /*!
+     * I also need an actual scaling factor, which says how far in
+     * real measurements the disance from one hex to another
+     * represents.
+     */
+
+    /*!
+     *
+     */
+    int offset = 0;
+
+    /*!
+     * Number of hexes
+     */
+    int nHexes = 0;
+
+#if 0
+    /*!
+     * Appears to be unused. populated as 1/maxR.
+     */
     double DR;
-    int nFields; // Number of competing reaction-diffusion systems
+#endif
+
+    int nFields = 1; // Number of competing reaction-diffusion systems
 
     vector<vector<double> > X; //
-    vector<vector<double> > H; // hex-grid info
+    vector<vector<double> > H; // HexData? hex-grid info
     vector<vector<double> > N; // hex neighbourhood
     vector<int> C;
 
     vector<vector<double> > NN, CC;
     ReactDiff (int scale, int offset, double z, int numFields) {
+
+        cout << "ReactDiff constructor called with scale: " << scale
+             << ", offset: " << offset << " and numFields: " << numFields << endl;
 
         this->scale = scale;
         this->offset = offset;
@@ -33,15 +66,16 @@ public:
         H.resize(6);
         int S = pow(2.0, scale-1) - offset;
         double s = S - offset;
-        n = 0;
+        unsigned int uncounted = 0;
         for (int d=0; d<=S; d++) {
             for (int r=-S; r<=S; r++) {
                 for (int g=-S; g<=S; g++) {
-                    for (int b=-S;b<=S;b++) {
-                        if (abs(r)+abs(g)+abs(b)==d*2 && (r+g+b==0)) {
+                    for (int b=-S; b<=S; b++) {
+                        if ((abs(r) + abs(g) + abs(b) == d * 2)
+                            && (r + g + b == 0)) {
                             double x = (g/2.+r)/s;
                             double y = g*(sqrt(3.)/2.)/s;
-                            if (x*x+y*y <= 0.75) { // circular
+                            if (x * x + y * y <= 0.75) { // circular
                                 //if (x*x/0.1 + y*y/0.8 <= 1) { // ellipse 1
                                 //if (x*x/0.8 + y*y/0.1 <= 1) { // ellipse 2
                                 //if (x*x/0.8 + y*y/0.01 <= 0.9) { // ellipse 3
@@ -55,66 +89,73 @@ public:
                                 H[3].push_back(g);                      //G
                                 H[4].push_back(b);                      //B
                                 H[5].push_back(d);                      //D
-                                n++;
-                            }
+                                nHexes++;
+                            } // else outside region
+                        } // else do nothing.
+                        else {
+                            ++uncounted;
                         }
                     }
                 }
             }
         }
 
+        cout << "Hexes counted: " << nHexes << " and not counted: " << uncounted << endl;
+
+#if 0
         int maxR = -1;
-        for(int i=0;i<n;i++){
+        for(int i=0;i<nHexes;i++){
             if(H[2][i]>maxR){
                 maxR = H[2][i];
             }
         }
         DR = 1./(double)(maxR);
+#endif
 
         // get neighbours
-        N.resize(n);
-        C.resize(n,0);
-        for(int i=0;i<n;i++){
+        N.resize (nHexes);
+        C.resize (nHexes, 0);
+        for (int i=0; i<nHexes; i++) {
             N[i].resize(6,i); // CONNECT ALL TO 'boundary' UNIT AT N+1
-            for(int j=0;j<n;j++){
+            for (int j=0; j<nHexes; j++) {
                 int dr = H[2][j]-H[2][i];
                 int dg = H[3][j]-H[3][i];
                 int db = H[4][j]-H[4][i];
-                if(max(max(abs(dr),abs(dg)),abs(db))==1){
-                    //anticlockwise from east
-                    if(db==-1&&dr==+1){N[i][0]=j;C[i]++;}
-                    if(db==-1&&dr== 0){N[i][1]=j;C[i]++;}
-                    if(db== 0&&dr==-1){N[i][2]=j;C[i]++;}
-                    if(db==+1&&dr==-1){N[i][3]=j;C[i]++;}
-                    if(db==+1&&dr== 0){N[i][4]=j;C[i]++;}
-                    if(db== 0&&dr==+1){N[i][5]=j;C[i]++;}
+                if (max (max (abs(dr), abs(dg)), abs(db)) == 1) {
+                    // anticlockwise from east
+                    if (db==-1 && dr==+1) { N[i][0]=j; C[i]++; }
+                    if (db==-1 && dr== 0) { N[i][1]=j; C[i]++; }
+                    if (db== 0 && dr==-1) { N[i][2]=j; C[i]++; }
+                    if (db==+1 && dr==-1) { N[i][3]=j; C[i]++; }
+                    if (db==+1 && dr== 0) { N[i][4]=j; C[i]++; }
+                    if (db== 0 && dr==+1) { N[i][5]=j; C[i]++; }
                 }
             }
         }
-        X.resize(n);
-        for(int i=0;i<n;i++){
-            X[i].resize(3,0.);
+        X.resize (nHexes);
+        for (int i=0; i<nHexes; i++) {
+            X[i].resize (3, 0.0);
             X[i][0] = H[0][i];
             X[i][1] = H[1][i];
         }
-        NN.resize(nFields);
-        CC.resize(nFields);
+        NN.resize (nFields);
+        CC.resize (nFields);
         for (int i=0; i<nFields; i++) {
-            NN[i].resize(n);
-            CC[i].resize(n);
+            NN[i].resize (nHexes);
+            CC[i].resize (nHexes);
         }
     };
 
-    vector<double> getLaplacian(vector<double> Q, double dx) {
-        double overdxSquare = 1./(dx*dx);
-        vector<double> L(n,0.);
-        for(int i=0;i<n;i++){
-            L[i]=(Q[N[i][0]]+Q[N[i][1]]+Q[N[i][2]]+Q[N[i][3]]+Q[N[i][4]]+Q[N[i][5]]-6.*Q[i])*overdxSquare;
+    vector<double> getLaplacian (vector<double> Q, double dx) {
+        double overdxSquare = 1.0/(dx*dx);
+        vector<double> L(nHexes, 0.0);
+        for (int i=0; i<nHexes; i++) {
+            L[i] = (Q[N[i][0]] + Q[N[i][1]] + Q[N[i][2]] + Q[N[i][3]] + Q[N[i][4]] + Q[N[i][5]] - 6.0 * Q[i]) * overdxSquare;
         }
         return L;
     }
 
-    void step(double dt, vector<double> Dn, vector<double> Dc) {
+    void step (double dt, vector<double> Dn, vector<double> Dc) {
 
         // ORIGINAL MASK (a,b,c) OR dr, dg, bd METHOD
         // 100,0.3* coffeebean
@@ -127,14 +168,14 @@ public:
         // double Dn = 80.;
         // double Dc = 0.3*Dn;
 
-        double ds = 50.*fabs(H[0][0]-H[0][1]) / 0.75; // SHOULD BE 25.*DR
-        double beta = 5.;
-        double b = 1., mu = 1.;
+        double ds = 50.0 * fabs (H[0][0] - H[0][1]) / 0.75; // SHOULD BE 25.*DR
+        double beta = 5.0;
+        double b = 1.0, mu = 1.0;
         vector<double> chi = Dn;
 
         // coupling of fields
-        vector<double> a(n,0.);
-        for (int j=0; j<n; j++) {
+        vector<double> a(nHexes,0.0);
+        for (int j=0; j<nHexes; j++) {
             for (int i=0; i<nFields; i++) {
                 a[j] += CC[i][j];
             }
@@ -149,41 +190,41 @@ public:
             // 2. http://systems-sciences.uni-graz.at/etextbook/sw3/continuousfield.html
             // 3. http://textbooks.opensuny.org/introduction-to-the-modeling-and-analysis-of-complex-systems/
 
-            vector<double> G(n,0.);
+            vector<double> G(nHexes, 0.0);
 
-            for (int i=0;i<n;i++) {
+            for (int i=0; i<nHexes; i++) {
                 // METHOD 3
-                double drN = NN[I][N[i][0]]-NN[I][N[i][3]];
-                double dgN = NN[I][N[i][1]]-NN[I][N[i][4]];
-                double dbN = NN[I][N[i][2]]-NN[I][N[i][5]];
+                double drN = NN[I][N[i][0]] - NN[I][N[i][3]];
+                double dgN = NN[I][N[i][1]] - NN[I][N[i][4]];
+                double dbN = NN[I][N[i][2]] - NN[I][N[i][5]];
 
-                double drC = CC[I][N[i][0]]-CC[I][N[i][3]];
-                double dgC = CC[I][N[i][1]]-CC[I][N[i][4]];
-                double dbC = CC[I][N[i][2]]-CC[I][N[i][5]];
+                double drC = CC[I][N[i][0]] - CC[I][N[i][3]];
+                double dgC = CC[I][N[i][1]] - CC[I][N[i][4]];
+                double dbC = CC[I][N[i][2]] - CC[I][N[i][5]];
 
-                G[i] = (drN*drC+dgN*dgC+dbN*dbC)/(6.*ds*ds*ds) + NN[I][i]*lapC[i];
+                G[i] = (drN * drC + dgN * dgC + dbN * dbC) / (6.0 * ds * ds * ds) + NN[I][i] * lapC[i];
             }
 
             // step N
-            for(int i=0;i<n;i++){
-                NN[I][i] += dt * (a[i] - b*NN[I][i] + Dn[I]*lapN[i] - chi[I]*G[i]);
+            for (int i=0; i<nHexes; i++) {
+                NN[I][i] += dt * (a[i] - b * NN[I][i] + Dn[I] * lapN[i] - chi[I] * G[i]);
             }
 
             // step C
             double N2;
-            for(int i=0;i<n;i++){
+            for (int i=0; i<nHexes; i++) {
                 N2 = NN[I][i] * NN[I][i];
-                CC[I][i] += dt * (beta * N2 / (1.+N2) - mu * CC[I][i] + Dc[I] * lapC[i]);
+                CC[I][i] += dt * (beta * N2 / (1.0 + N2) - mu * CC[I][i] + Dc[I] * lapC[i]);
             }
 
             // Enforce no-flux boundary
             vector<double> CCp = CC[I];
             vector<double> NNp = NN[I];
-            for (int i=0; i<n; i++) {
+            for (int i=0; i<nHexes; i++) {
                 if (C[i]<6) {
-                    double nfC = 0., nfN = 0.;
+                    double nfC = 0.0, nfN = 0.0;
                     for (int j=0; j<6; j++) {
-                        if (N[i][j] !=i) {
+                        if (N[i][j] != i) {
                             nfC += CCp[N[i][j]];
                             nfN += NNp[N[i][j]];
                         }
@@ -196,16 +237,16 @@ public:
     }
 }; // ReactDiff
 
-vector<int> getEdges(double p, vector<double>  P,double c)
+vector<int> getEdges (double p, vector<double>  P, double c)
 {
     vector<int> k;
-    if (p<c){
-        if(P[0]>c){ k.push_back(0); }
-        if(P[1]>c){ k.push_back(1); }
-        if(P[2]>c){ k.push_back(2); }
-        if(P[3]>c){ k.push_back(3); }
-        if(P[4]>c){ k.push_back(4); }
-        if(P[5]>c){ k.push_back(5); }
+    if (p<c) {
+        if (P[0]>c) { k.push_back(0); }
+        if (P[1]>c) { k.push_back(1); }
+        if (P[2]>c) { k.push_back(2); }
+        if (P[3]>c) { k.push_back(3); }
+        if (P[4]>c) { k.push_back(4); }
+        if (P[5]>c) { k.push_back(5); }
     }
     return k;
 }
@@ -229,9 +270,9 @@ int main (int argc, char **argv)
     displays[0].resetDisplay(fix,eye,rot);
     displays[0].redrawDisplay();
 
-    ReactDiff M(7,0,0.,5);
+    ReactDiff M(6,0,0.,5);
     for (int I=0; I<M.nFields; I++) {
-        for (int i=0; i<M.n; i++) {
+        for (int i=0; i<M.nHexes; i++) {
             M.NN[I][i]=(morph::Tools::randFloat())*0.1;
             M.CC[I][i]=(morph::Tools::randFloat())*0.1;
         }
@@ -336,20 +377,20 @@ int main (int argc, char **argv)
             vector<double> plt = M.NN[0];
             double maxV = -1e7;
             double minV = +1e7;
-            for (int i=0;i<M.n;i++) {
-                if (M.C[i]==6) {
+            for (int i=0;i<M.nHexes;i++) {
+                if (M.C[i] == 6) {
                     if (plt[i]>maxV) { maxV = plt[i]; }
                     if (plt[i]<minV) { minV = plt[i]; }
                 }
             }
             double scaleV = 1./(maxV-minV);
-            vector<double> P(M.n,0.);
-            for (int i=0;i<M.n;i++) {
+            vector<double> P(M.nHexes,0.);
+            for (int i=0; i<M.nHexes; i++) {
                 P[i] = fmin (fmax (((plt[i])-minV)*scaleV,0.),1.);
                 // M.X[i][2] = P[i];
             }
 
-            for (int i=0;i<M.n;i++) {
+            for (int i=0; i<M.nHexes; i++) {
                 vector <double> cl = morph::Tools::getJetColor(P[i]);
                 displays[0].drawTriFill(M.X[i],M.X[M.N[i][0]],M.X[M.N[i][1]],cl);
                 displays[0].drawTriFill(M.X[i],M.X[M.N[i][3]],M.X[M.N[i][4]],cl);
@@ -452,22 +493,22 @@ int main (int argc, char **argv)
                 vector<double> plt = M.NN[I];
                 double maxV = -1e7;
                 double minV = +1e7;
-                for(int i=0;i<M.n;i++){
+                for(int i=0;i<M.nHexes;i++){
                     if(M.C[i]==6){
                         if(plt[i]>maxV){maxV = plt[i];}
                         if(plt[i]<minV){minV = plt[i];}
                     }
                 }
                 double scaleV = 1./(maxV-minV);
-                vector<double> P(M.n,0.);
-                for(int i=0;i<M.n;i++){
+                vector<double> P(M.nHexes,0.);
+                for (int i=0; i<M.nHexes; i++) {
                     P[i] = fmin(fmax( ((plt[i])-minV)*scaleV,0.),1.);
                     // M.X[i][2] = P[i];
                 }
 
                 double dh = fabs(M.H[0][0]-M.H[0][1])*0.5;
 
-                for(int i=0;i<M.n;i++){
+                for(int i=0; i<M.nHexes; i++) {
 
                     vector <double> cl = morph::Tools::getJetColor(P[i]);
                     //displays[0].drawHex(M.H[0][i],M.H[1][i],0.,dh,cl[0],cl[1],cl[2]);
@@ -513,7 +554,7 @@ int main (int argc, char **argv)
             double dh = fabs(M.H[0][0]-M.H[0][1])*0.5;
 
             displays[0].resetDisplay(fix,eye,rot);
-            for(int i=0;i<M.n;i++){
+            for (int i=0; i<M.nHexes; i++) {
                 double maxV = -1e7;
                 int maxI = 0;
                 double sel = 0.;
