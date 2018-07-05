@@ -8,7 +8,7 @@ basePort = 8000
 worlds = [P.pTemp('build/sim','world00','logs/log00',1,basePort+0),
           P.pTemp('build/sim','world01','logs/log01',2,basePort+1)]
 
-
+# These are the diffusion constants
 #Dn = np.array([100.,5.])
 #Dc = np.array([100.*0.3,5.*0.3])
 Dn = np.array([200.,10.])
