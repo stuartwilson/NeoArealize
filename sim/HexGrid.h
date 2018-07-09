@@ -40,7 +40,6 @@ namespace morph {
         /*!
          * Initialise the Hex elements.
          */
-        void initcart (void);
         void init (void);
 
         /*!

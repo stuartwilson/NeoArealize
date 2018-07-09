@@ -49,55 +49,6 @@ morph::HexGrid::output (void)
 }
 
 void
-morph::HexGrid::initcart (void)
-{
-    // Number of hexes in the first row. The second row will have
-    // rowN+2 hexes; the third row rowN hexes and so on, alternating.
-    unsigned int rowN = ceil(this->x_span/this->hextohex);
-    unsigned int colN = ceil(this->y_span/this->hextohex);
-
-    /*
-     * First run through and create the grid.
-     */
-
-    // How much we will move the centre of the hexes as we advance up
-    // each row of hexes:
-    float yhextoyhex = 2.0f*this->hextohex/morph::SQRT_OF_3_F;
-
-    // The "vector iterator" - this is an identity iterator that is
-    // added to each Hex in the grid. If hexes are removed from the
-    // grid, then these may need to be updated in the remaining hexes.
-    unsigned int vi = 0;
-
-    for (unsigned int yi = 0; yi<colN; ++yi) {
-        // Holds the number of hexes in the current row (this alternates).
-        unsigned int _rowN = 0;
-        // The running Cartesian x, y of the Hexes being added to the HexGrid.
-        float xpos, ypos;
-        if (yi%2 == 0) { // even row
-            _rowN = rowN;
-            // On even row, reset x position to 0
-            xpos = 0.0f;
-        } else { // odd row
-            _rowN = rowN+1;
-            // On even row, reset x position to a little left of 0.
-            xpos = 0.0f-this->hextohex/2.0f;
-        }
-        // Add the hexes for the row.
-        for (unsigned int xi = 0; xi < _rowN; ++xi) {
-            Hex h(vi++, this->hextohex, xpos, ypos);
-            this->hexen.push_back (h);
-            xpos += this->hextohex;
-        }
-        ypos += yhextoyhex;
-    }
-
-    /*
-     * Second run through; re-define the grid according to boundary.
-     */
-}
-
-void
 morph::HexGrid::init (void)
 {
     // Number of hexes in the first row. The second row will have
