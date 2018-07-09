@@ -23,13 +23,13 @@ morph::HexGrid::HexGrid (float d, float width, float height, float fixz)
 }
 
 unsigned int
-morph::HexGrid::num (void)
+morph::HexGrid::num (void) const
 {
     return this->hexen.size();
 }
 
 string
-morph::HexGrid::output (void)
+morph::HexGrid::output (void) const
 {
     stringstream ss;
     ss << "Hex grid with " << this->hexen.size() << " hexes." << endl;
@@ -51,10 +51,6 @@ morph::HexGrid::output (void)
 void
 morph::HexGrid::init (void)
 {
-    // Number of hexes in the first row. The second row will have
-    // rowN+2 hexes; the third row rowN hexes and so on, alternating.
-    //int halfRowN = ceil(abs(this->x_span/2*this->hextohex));
-
     // First get the number of g indices that we need to go down from the centre of the HexGrid:
     float halfY = this->y_span/2.0f;
     float dv = (this->hextohex*morph::SQRT_OF_3_F)/2.0f;
@@ -76,6 +72,7 @@ morph::HexGrid::init (void)
     /*
      * First run through and create the grid.
      */
+    cout << "Creating hex grid..." << endl;
 
     // The "vector iterator" - this is an identity iterator that is
     // added to each Hex in the grid. If hexes are removed from the
@@ -98,4 +95,11 @@ morph::HexGrid::init (void)
     /*
      * Second run through; re-define the grid according to boundary.
      */
+    cout << "Applying boundary..." << endl;
+
+    /*
+     * Final run through. Re-compute a suitable vector iterator for
+     * the list of Hexes. Populate neighbour pointers for each Hex.
+     */
+
 }

@@ -24,12 +24,12 @@ namespace morph {
         /*!
          * Return the number of hexes in the grid.
          */
-        unsigned int num (void);
+        unsigned int num (void) const;
 
         /*!
          * Output some text information about the hexgrid.
          */
-        string output (void);
+        string output (void) const;
 
         /*!
          * The list of hexes.

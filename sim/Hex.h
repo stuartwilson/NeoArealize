@@ -69,7 +69,7 @@ namespace morph {
             this->computeCartesian();
         }
 
-        string output (void) {
+        string output (void) const {
             string s("Hex ");
             s += to_string(this->vi) + " x:";
             s += to_string(this->x) + " y:";
