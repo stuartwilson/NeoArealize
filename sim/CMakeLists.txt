@@ -7,3 +7,7 @@ target_link_libraries(process ${MORPH_LDFLAGS})
 #target_link_libraries(processf ${MORPH_LDFLAGS})
 
 add_executable(testhexgrid testhexgrid.cpp HexGrid.cpp)
+target_link_libraries(testhexgrid ${MORPH_LDFLAGS})
+
+add_executable(testhexgrid2 testhexgrid2.cpp HexGrid.cpp)
+target_link_libraries(testhexgrid2 ${MORPH_LDFLAGS})

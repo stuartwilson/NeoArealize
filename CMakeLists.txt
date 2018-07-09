@@ -35,8 +35,10 @@ include_directories(${OpenCV_INCLUDE_DIRS} ${OPENGL_INCLUDE_DIR} ${GLUT_INCLUDE_
 # Find libmorphologica using pkgconfig
 find_package(PkgConfig)
 if(PKG_CONFIG_FOUND)
+  message(STATUS "Have pkg_config")
   pkg_check_modules(MORPH REQUIRED libmorphologica)
   if (MORPH_FOUND)
+    message(STATUS "pkg_config found libmorphologica")
     include_directories(${MORPH_INCLUDEDIR})
   else()
     message(FATAL_ERROR "You need libmorphologica from github.com/ABRG_Models/morphologica")
@@ -49,7 +51,7 @@ endif()
 add_subdirectory(sim)
 
 # For debugging of variables:
-set(DEBUG_VARIABLES ON)
+set(DEBUG_VARIABLES OFF)
 if(DEBUG_VARIABLES)
   get_cmake_property(_variableNames VARIABLES)
   foreach (_variableName ${_variableNames})

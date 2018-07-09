@@ -161,32 +161,38 @@ namespace morph {
         /*!
          * Nearest neighbour to the East; in the plus r direction.
          */
-        Hex* nr = (Hex*)0;
+        Hex* ne = (Hex*)0;
         /*!
          * Nearest neighbour to the NorthEast; in the plus g
          * direction.
          */
-        Hex* ng = (Hex*)0;
+        Hex* nne = (Hex*)0;
         /*!
          * Nearest neighbour to the NorthWest; in the plus b
          * direction.
          */
-        Hex* nb = (Hex*)0;
+        Hex* nnw = (Hex*)0;
         /*!
          * Nearest neighbour to the West; in the minus r direction.
          */
-        Hex* nmr = (Hex*)0;
+        Hex* nw = (Hex*)0;
         /*!
-         * Nearest neighbour to the SoutWest; in the minus g
+         * Nearest neighbour to the SouthWest; in the minus g
          * direction.
          */
-        Hex* nmg = (Hex*)0;
+        Hex* nsw = (Hex*)0;
         /*!
          * Nearest neighbour to the SouthEast; in the minus b
          * direction.
          */
-        Hex* nmb = (Hex*)0;
+        Hex* nse = (Hex*)0;
         //@}
+
+        /*!
+         * Set true if this is a boundary hex - one on the outside
+         * edge of a hex grid.
+         */
+        bool onBoundary  = false;
     };
 
 } // namespace morph

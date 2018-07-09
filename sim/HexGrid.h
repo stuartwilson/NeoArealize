@@ -2,12 +2,14 @@
 #define _HEXGRID_H_
 
 #include "Hex.h"
+#include <morph/BezCurvePath.h>
 
 #include <list>
 #include <string>
 
 using std::list;
 using std::string;
+using morph::Hex;
 
 namespace morph {
 
@@ -20,6 +22,19 @@ namespace morph {
          * and height. Set z to fixz.
          */
         HexGrid (float d, float width, float height, float fixz = 0.0f);
+
+        /*!
+         * Sets boundry to p, then runs the code to discard hexes
+         * lying outside this boundary. Finishes up by calling
+         * setupNeighbours.
+         */
+        void setBoundary (const BezCurvePath& p);
+
+        /*!
+         * Find the closest Hex in this->hexen to the coordinate
+         * point, and set its onBoundary attribute to true.
+         */
+        list<Hex>::iterator setBoundary (const BezCoord& point, list<Hex>::iterator startFrom);
 
         /*!
          * Return the number of hexes in the grid.
@@ -38,9 +53,29 @@ namespace morph {
 
     private:
         /*!
-         * Initialise the Hex elements.
+         * Initialise the Hex elements - this makes up a rectangular
+         * grid. Called by constructor.
          */
         void init (void);
+
+        /*!
+         * This sets the nearest neighbours up.
+         *
+         * WARNING: This assumes that bi is always 0!!!
+         */
+        void setupNeighbours (void);
+
+        /*!
+         * Check to see if the Hex candidate has the same ri, gi, bi
+         * as the six candidates held in the vector of ints
+         * neighbourRGB. The return code is 0: candidate does not
+         * match any of neighbourRGB and is not a neighbour; 1:
+         * candidate is an East neighbour; 2: candidate is a NE
+         * neighbour; 3: candidate is a NW neighbour; 4: candidate is
+         * a West neighbour; 5: candidate is a SW neighbour; 6:
+         * candidate is a SE neighbour.
+         */
+        int checkNeighbour (const Hex& candidate, const vector<int>& neighbourRGB);
 
         /*!
          * Centre to centre hex distance.
@@ -48,7 +83,7 @@ namespace morph {
         float hextohex = 1.0f;
 
         /*!
-         * Make hexes in the horizonal direction over a span of
+          * Make hexes in the horizonal direction over a span of
          * x_span.
          */
         float x_span = 10.0f;
@@ -62,6 +97,11 @@ namespace morph {
          * The z coordinate of this hex grid layer
          */
         float z;
+
+        /*!
+         * A boundary to apply to the initial, rectangular grid.
+         */
+        BezCurvePath boundary;
     };
 
 } // namespace morph
