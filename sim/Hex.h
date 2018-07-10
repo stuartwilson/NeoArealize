@@ -71,9 +71,29 @@ namespace morph {
 
         string output (void) const {
             string s("Hex ");
-            s += to_string(this->vi) + " x:";
-            s += to_string(this->x) + " y:";
-            s += to_string(this->y) + ". ";
+            s += to_string(this->vi).substr(0,2) + " (";
+            s += to_string(this->ri).substr(0,4) + ",";
+            s += to_string(this->gi).substr(0,4) + "). ";
+
+            if (this->ne != (Hex*)0) {
+                s += "E: (" + to_string(this->ne->ri).substr(0,4) + "," + to_string(this->ne->gi).substr(0,4) + ") ";
+            }
+            if (this->nse != (Hex*)0) {
+                s += "SE: (" + to_string(this->nse->ri).substr(0,4) + "," + to_string(this->nse->gi).substr(0,4) + ") ";
+            }
+            if (this->nsw != (Hex*)0) {
+                s += "SW: (" + to_string(this->nsw->ri).substr(0,4) + "," + to_string(this->nsw->gi).substr(0,4) + ") ";
+            }
+            if (this->nw != (Hex*)0) {
+                s += "W: (" + to_string(this->nw->ri).substr(0,4) + "," + to_string(this->nw->gi).substr(0,4) + ") ";
+            }
+            if (this->nnw != (Hex*)0) {
+                s += "NW: (" + to_string(this->nnw->ri).substr(0,4) + "," + to_string(this->nnw->gi).substr(0,4) + ") ";
+            }
+            if (this->nne != (Hex*)0) {
+                s += "NE: (" + to_string(this->nne->ri).substr(0,4) + "," + to_string(this->nne->gi).substr(0,4) + ") ";
+            }
+
             return s;
         }
 
