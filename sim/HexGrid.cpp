@@ -25,12 +25,12 @@ using morph::BezCurvePath;
 using morph::BezCoord;
 using morph::Hex;
 
-morph::HexGrid::HexGrid (float d, float width, float height, float fixz)
+morph::HexGrid::HexGrid (float d_, float x_span_, float y_span_, float z_)
 {
-    this->hextohex = d;
-    this->x_span = width;
-    this->y_span = height;
-    this->z = fixz;
+    this->d = d_;
+    this->x_span = x_span_;
+    this->y_span = y_span_;
+    this->z = z_;
 
     this->init();
 }
@@ -48,7 +48,7 @@ morph::HexGrid::setBoundary (const BezCurvePath& p)
 
         // Compute the points on the boundary using the hex to hex
         // spacing as the step size.
-        vector<BezCoord> bpoints = this->boundary.getPoints (this->hextohex);
+        vector<BezCoord> bpoints = this->boundary.getPoints (this->d);
 
         auto bpi = bpoints.begin();
         list<Hex>::iterator lhi = this->hexen.begin();
@@ -211,23 +211,23 @@ morph::HexGrid::output (void) const
 }
 
 void
-morph::HexGrid::init (void)
+morph::HexGrid::initRect (void)
 {
     // First get the number of g indices that we need to go down from the centre of the HexGrid:
     float halfY = this->y_span/2.0f;
-    float dv = (this->hextohex*morph::SQRT_OF_3_F)/2.0f;
+    float dv = (this->d*morph::SQRT_OF_3_F)/2.0f;
     int distG = ceil(abs(halfY/dv));
     //cout << "distG: " << distG << " g-indices" << endl;
 
     // Now add up the distance we've gone in the horizontal direction.
-    float x_travel = distG * this->hextohex / 2.0f;
+    float x_travel = distG * this->d / 2.0f;
     float x_rest = (this->x_span/2.0f) - x_travel;
     //cout << "x_travel: " << x_travel << " cart. units." << endl;
     //cout << "x_rest: " << x_rest  << " cart. units."<< endl;
 
     // Work out how many r-indices this is to the left and to the right for the first row.
-    int distR_L = ceil(abs(x_rest/this->hextohex));
-    int distR_R = ceil(abs( ((x_span/2.0f)+x_travel)/this->hextohex ));
+    int distR_L = ceil(abs(x_rest/this->d));
+    int distR_R = ceil(abs( ((x_span/2.0f)+x_travel)/this->d ));
     //cout << "distR_L: " << distR_L << endl;
     //cout << "distR_R: " << distR_R << endl;
 
@@ -245,7 +245,7 @@ morph::HexGrid::init (void)
         // Add the hexes for the row.
         for (int ri = -distR_L; ri <= distR_R; ++ri) {
             //cout << "gi:" << gi << " ri:" << ri << " ";
-            Hex h(vi++, this->hextohex, ri, gi);
+            Hex h(vi++, this->d, ri, gi);
             this->hexen.push_back (h);
         }
         if (rowCount++ % 2 == 0) {
@@ -258,6 +258,105 @@ morph::HexGrid::init (void)
     cout << "Set up neighbours..." << endl;
     this->setupNeighbours();
 
+
+    cout << "init() done" << endl;
+}
+
+void
+morph::HexGrid::init (void)
+{
+    // Use span_x to determine how many rings out to traverse.
+    float halfX = this->x_span/2.0f;
+    unsigned int maxRing = abs(ceil(halfX/this->d));
+
+    cout << "Creating hexagonal hex grid..." << endl;
+
+    // The "vector iterator" - this is an identity iterator that is
+    // added to each Hex in the grid.
+    unsigned int vi = 0;
+
+    // Vectors of pointers to hexes in this->hexen. Used to keep a
+    // track of nearest neighbours. I'm using vector, rather than a
+    // list as this allows fast random access of elements and I'll not
+    // be inserting or erasing in the middle of the arrays.
+    vector<Hex*> prevRingEven;
+    vector<Hex*> prevRingOdd;
+
+    // Swap pointers between rings.
+    vector<Hex*>* prevRing = &prevRingEven;
+    vector<Hex*>* nextPrevRing = &prevRingOdd;
+
+    // Direction iterators used in the loop.
+    int ri = 0;
+    int gi = 0;
+
+    // Create central "ring" first (the single hex)
+    this->hexen.emplace (vi++, this->d, ri, gi);
+
+    // Put central ring in the prevRing vector:
+    prevRing->push_back (&this->hexen.back());
+
+    // Now build up the rings around it, setting neighbours as we
+    // go. Each ring has 6 more hexes than the previous one (except
+    // for ring 1, which has 6 instead of 1 in the centre).
+    unsigned int numInRing = 6;
+
+    // How many hops in the same direction before turning a corner?
+    // Increases for each ring. Increases by 1 in each ring.
+    unsigned int ringSideLen = 1;
+
+    for (unsigned int ring = 0; ring <= maxRing; ++ring) {
+
+        // Set start ri, gi. This moves up a hex and left a hex.
+        --ri;
+        ++gi;
+
+        // Now walk around the ring:
+        //
+        // Walk in r direction
+        for (unsigned int i = 0; i<ringSideLen; ++i) {
+            this->hexen.emplace (vi++, this->d, ri++, gi);
+            Hex& h = this->hexen.back();
+            // Set my neighbour(s):
+            h.nse = prevRing[0];
+            // Set me as neighbour to those in prevRing:
+            prevRing[0]->nnw = &h;
+
+            // Put in me nextPrevRing:
+            nextPrevRing->push_back (&h);
+        }
+        // Walk in -b direction
+        for (unsigned int i = 0; i<ringSideLen; ++i) {
+            this->hexen.emplace (vi++, this->d, ri++, gi--);
+
+        }
+        // Walk in -g direction
+        for (unsigned int i = 0; i<ringSideLen; ++i) {
+            this->hexen.emplace (vi++, this->d, ri, gi--);
+
+        }
+        // Walk in -r direction
+        for (unsigned int i = 0; i<ringSideLen; ++i) {
+            this->hexen.emplace (vi++, this->d, ri--, gi);
+
+        }
+        // Walk in b direction
+        for (unsigned int i = 0; i<ringSideLen; ++i) {
+            this->hexen.emplace (vi++, this->d, ri--, gi++);
+
+        }
+        // Should now be on the last hex.
+
+        // Always 6 additional hexes in the next ring out
+        numInRing += 6;
+        // And ring side length goes up by 1
+        ringSideLen++;
+
+        // Swap prevRing and nextPrevRing.
+        vector<Hex*>* tmp = prevRing;
+        prevRing = nextPrevRing;
+        nextPrevRing = tmp;
+    }
 
     cout << "init() done" << endl;
 }

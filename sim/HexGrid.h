@@ -21,7 +21,7 @@ namespace morph {
          * d (centre to centre) and approximate spans of width
          * and height. Set z to fixz.
          */
-        HexGrid (float d, float width, float height, float fixz = 0.0f);
+        HexGrid (float d_, float x_span_, float y_span_, float z_ = 0.0f);
 
         /*!
          * Sets boundry to p, then runs the code to discard hexes
@@ -54,7 +54,16 @@ namespace morph {
     private:
         /*!
          * Initialise the Hex elements - this makes up a rectangular
-         * grid. Called by constructor.
+         * grid of hexes. It calls a setupNeighbours method to set up
+         * the nearest neighbours, but this is a very slow algorithm
+         * indeed, which is why this is deprecated now.
+         */
+        void initRect (void);
+
+        /*!
+         * Initialise a grid of hexes in a hex spiral, setting
+         * neighbours as we go in, hopefully, a fairly effecient
+         * algorithm.
          */
         void init (void);
 
@@ -80,7 +89,7 @@ namespace morph {
         /*!
          * Centre to centre hex distance.
          */
-        float hextohex = 1.0f;
+        float d = 1.0f;
 
         /*!
           * Make hexes in the horizonal direction over a span of
