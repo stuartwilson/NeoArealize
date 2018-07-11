@@ -231,7 +231,7 @@ morph::HexGrid::init (void)
             DBG2 ("i is " << i << ", j is " << j);
 
             // 3. Set my SE neighbour:
-            if (j<walkmax) {
+            if (j<=walkmax) {
                 hi->set_nse ((*prevRing)[j]);
                 // Set me as NW neighbour:
                 DBG2 (" r walk: Set me (" << hi->ri << "," << hi->gi << ") as NW neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
@@ -284,7 +284,7 @@ morph::HexGrid::init (void)
 
             // 3. Set my SW neighbour:
             DBG2 ("i is " << i << ", j is " << j);
-            if (j<walkmax) {
+            if (j<=walkmax) {
                 hi->set_nsw ((*prevRing)[j]);
                 // Set me as NE neighbour:
                 DBG2 ("-b walk: Set me (" << hi->ri << "," << hi->gi << ") as NE neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
@@ -336,7 +336,7 @@ morph::HexGrid::init (void)
             DBG2 ("i is " << i << ", j is " << j);
 
             // 3. Set my W neighbour:
-            if (j<walkmax) {
+            if (j<=walkmax) {
                 hi->set_nw ((*prevRing)[j]);
                 // Set me as E neighbour:
                 DBG2 ("-g walk: Set me (" << hi->ri << "," << hi->gi << ") as E neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
@@ -389,7 +389,7 @@ morph::HexGrid::init (void)
             DBG2 ("i is " << i << ", j is " << j);
 
             // 3. Set my NW neighbour:
-            if (j<walkmax) {
+            if (j<=walkmax) {
                 hi->set_nnw ((*prevRing)[j]);
                 // Set me as SE neighbour:
                 DBG2 ("-r walk: Set me (" << hi->ri << "," << hi->gi << ") as SE neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
@@ -440,7 +440,7 @@ morph::HexGrid::init (void)
             DBG2 ("i is " << i << ", j is " << j);
 
             // 3. Set my NE neighbour:
-            if (j<walkmax) {
+            if (j<=walkmax) {
                 hi->set_nne ((*prevRing)[j]);
                 // Set me as SW neighbour:
                 DBG2 (" b walk: Set me (" << hi->ri << "," << hi->gi << ") as SW neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
@@ -467,7 +467,16 @@ morph::HexGrid::init (void)
             --lasthi;
 
             // 1. Set my SW neighbour to be the previous hex in THIS ring, if possible
-            if (i > 0) {
+            if (i == (ringSideLen-1)) {
+                // Special case at end; on last g walk hex, set the NE neighbour
+                // Set my NE neighbour for the first hex in the row.
+                hi->set_nne ((*nextPrevRing)[0]); // (*nextPrevRing)[0] is an iterator to the first hex
+
+                DBG2 (" g walk: Set me (" << hi->ri << "," << hi->gi << ") as SW neighbour for this ring's first hex at (" << (*nextPrevRing)[0]->ri << "," << (*nextPrevRing)[0]->gi << ")");
+                // Set me as NW neighbour to previous hex in the ring:
+                (*nextPrevRing)[0]->set_nsw (hi);
+
+            } else if (i > 0) {
                 hi->set_nsw (lasthi);
                 DBG2 (" g walk: Set me (" << hi->ri << "," << hi->gi << ") as NE neighbour for hex at (" << lasthi->ri << "," << lasthi->gi << ")");
                 // Set me as NE neighbour to previous hex in the ring:
@@ -494,7 +503,15 @@ morph::HexGrid::init (void)
             DBG2 ("i is " << i << ", j is " << j);
 
             // 3. Set my E neighbour:
-            if (j<walkmax) {
+            if (j==walkmax) { // We're on the last square and need to
+                              // set the East neighbour of the first
+                              // hex in the last ring.
+                hi->set_ne ((*prevRing)[0]);
+                // Set me as W neighbour:
+                DBG2 (" g walk: Set me (" << hi->ri << "," << hi->gi << ") as W neighbour for hex at (" << (*prevRing)[0]->ri << "," << (*prevRing)[0]->gi << ")");
+                (*prevRing)[0]->set_nw (hi);
+
+            } else if (j<walkmax) {
                 hi->set_ne ((*prevRing)[j]);
                 // Set me as W neighbour:
                 DBG2 (" g walk: Set me (" << hi->ri << "," << hi->gi << ") as W neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
