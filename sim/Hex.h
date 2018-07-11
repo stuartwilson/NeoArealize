@@ -3,11 +3,13 @@
 
 #include <tuple>
 #include <string>
+#include <list>
 
 using std::tuple;
 using std::get;
 using std::string;
 using std::to_string;
+using std::list;
 
 //#define DEBUG_DECONSTRUCT 1
 #ifdef DEBUG_DECONSTRUCT
@@ -75,22 +77,22 @@ namespace morph {
             s += to_string(this->ri).substr(0,4) + ",";
             s += to_string(this->gi).substr(0,4) + "). ";
 
-            if (this->ne != (Hex*)0) {
+            if (this->has_ne) {
                 s += "E: (" + to_string(this->ne->ri).substr(0,4) + "," + to_string(this->ne->gi).substr(0,4) + ") ";
             }
-            if (this->nse != (Hex*)0) {
+            if (this->has_nse) {
                 s += "SE: (" + to_string(this->nse->ri).substr(0,4) + "," + to_string(this->nse->gi).substr(0,4) + ") ";
             }
-            if (this->nsw != (Hex*)0) {
+            if (this->has_nsw) {
                 s += "SW: (" + to_string(this->nsw->ri).substr(0,4) + "," + to_string(this->nsw->gi).substr(0,4) + ") ";
             }
-            if (this->nw != (Hex*)0) {
+            if (this->has_nw) {
                 s += "W: (" + to_string(this->nw->ri).substr(0,4) + "," + to_string(this->nw->gi).substr(0,4) + ") ";
             }
-            if (this->nnw != (Hex*)0) {
+            if (this->has_nnw) {
                 s += "NW: (" + to_string(this->nnw->ri).substr(0,4) + "," + to_string(this->nnw->gi).substr(0,4) + ") ";
             }
-            if (this->nne != (Hex*)0) {
+            if (this->has_nne) {
                 s += "NE: (" + to_string(this->nne->ri).substr(0,4) + "," + to_string(this->nne->gi).substr(0,4) + ") ";
             }
 
@@ -175,44 +177,103 @@ namespace morph {
         //@}
 
         /*!
+         * Set true if this is a boundary hex - one on the outside
+         * edge of a hex grid.
+         */
+        bool onBoundary  = false;
+
+        /*!
+         * Setters for neighbour iterators
+         */
+        //@{
+        void set_ne (list<Hex>::iterator it) {
+            this->ne = it;
+            this->has_ne = true;
+        }
+        void set_nne (list<Hex>::iterator it) {
+            this->nne = it;
+            this->has_nne = true;
+        }
+        void set_nnw (list<Hex>::iterator it) {
+            this->nnw = it;
+            this->has_nnw = true;
+        }
+        void set_nw (list<Hex>::iterator it) {
+            this->nw = it;
+            this->has_nw = true;
+        }
+        void set_nsw (list<Hex>::iterator it) {
+            this->nsw = it;
+            this->has_nsw = true;
+        }
+        void set_nse (list<Hex>::iterator it) {
+            this->nse = it;
+            this->has_nse = true;
+        }
+        //@}
+
+        //private:??
+        /*!
          * Nearest neighbours
          */
         //@{
         /*!
          * Nearest neighbour to the East; in the plus r direction.
          */
-        Hex* ne = (Hex*)0;
+        list<Hex>::iterator ne;
+        /*!
+         * Set true when ne has been set. Use of iterators rather than
+         * pointers means we can't do any kind of check to see if the
+         * iterator is valid, so we have to keep a separate boolean
+         * value.
+         */
+        bool has_ne = false;
+
         /*!
          * Nearest neighbour to the NorthEast; in the plus g
          * direction.
          */
-        Hex* nne = (Hex*)0;
+        //@{
+        list<Hex>::iterator nne;
+        bool has_nne = false;
+        //@}
+
         /*!
          * Nearest neighbour to the NorthWest; in the plus b
          * direction.
          */
-        Hex* nnw = (Hex*)0;
+        //@{
+        list<Hex>::iterator nnw;
+        bool has_nnw = false;
+        //@}
+
         /*!
          * Nearest neighbour to the West; in the minus r direction.
          */
-        Hex* nw = (Hex*)0;
+        //@{
+        list<Hex>::iterator nw;
+        bool has_nw = false;
+        //@}
+
         /*!
          * Nearest neighbour to the SouthWest; in the minus g
          * direction.
          */
-        Hex* nsw = (Hex*)0;
+        //@{
+        list<Hex>::iterator nsw;
+        bool has_nsw = false;
+        //@}
+
         /*!
          * Nearest neighbour to the SouthEast; in the minus b
          * direction.
          */
-        Hex* nse = (Hex*)0;
+        //@{
+        list<Hex>::iterator nse;
+        bool has_nse = false;
         //@}
 
-        /*!
-         * Set true if this is a boundary hex - one on the outside
-         * edge of a hex grid.
-         */
-        bool onBoundary  = false;
+        //@}
     };
 
 } // namespace morph

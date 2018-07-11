@@ -53,26 +53,11 @@ namespace morph {
 
     private:
         /*!
-         * Initialise the Hex elements - this makes up a rectangular
-         * grid of hexes. It calls a setupNeighbours method to set up
-         * the nearest neighbours, but this is a very slow algorithm
-         * indeed, which is why this is deprecated now.
-         */
-        void initRect (void);
-
-        /*!
          * Initialise a grid of hexes in a hex spiral, setting
          * neighbours as we go in, hopefully, a fairly effecient
          * algorithm.
          */
         void init (void);
-
-        /*!
-         * This sets the nearest neighbours up.
-         *
-         * WARNING: This assumes that bi is always 0!!!
-         */
-        void setupNeighbours (void);
 
         /*!
          * Check to see if the Hex candidate has the same ri, gi, bi
