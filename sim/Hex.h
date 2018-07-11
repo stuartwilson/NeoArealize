@@ -1,18 +1,21 @@
 #ifndef _HEX_H_
 #define _HEX_H_
 
-#include <tuple>
 #include <string>
 #include <list>
+#include <utility>
+#include <cmath>
+#include "morph/BezCoord.h"
 
-using std::tuple;
-using std::get;
 using std::string;
 using std::to_string;
 using std::list;
+using std::abs;
+using std::sqrt;
+using std::pair;
 
-//#define DEBUG_DECONSTRUCT 1
-#ifdef DEBUG_DECONSTRUCT
+#define DEBUG_WITH_COUT 1
+#ifdef DEBUG_WITH_COUT
 #include <iostream>
 using std::cout;
 using std::endl;
@@ -65,7 +68,9 @@ namespace morph {
         }
 
         /*!
-         * Produce a string containing information about this hex.
+         * Produce a string containing information about this hex,
+         * showing grid location in dimensionless r,g (but not b)
+         * units. Also show nearest neighbours.
          */
         string output (void) const {
             string s("Hex ");
@@ -104,7 +109,7 @@ namespace morph {
             s += to_string(this->vi).substr(0,2) + " (";
             s += to_string(this->ri).substr(0,4) + ",";
             s += to_string(this->gi).substr(0,4) + ") is at (x,y) = ("
-                + to_string(this->x).substr(0,4) +"," +  to_string(this->y).substr(0,4) + ")";
+                + to_string(this->x).substr(0,4) +"," + to_string(this->y).substr(0,4) + ")";
             return s;
         }
 
@@ -116,7 +121,21 @@ namespace morph {
             this->x = this->d*this->ri + (d/2.0f)*this->gi - (d/2.0f)*this->bi;
             float dv = (this->d*morph::SQRT_OF_3_F)/2.0f;
             this->y = dv*this->gi + dv*this->bi;
-            //cout << "x:" << x << " y:" << y << endl;
+        }
+
+        float distanceFrom (const pair<float, float> cartesianPoint) const {
+            float dx = abs(cartesianPoint.first - x);
+            float dy = abs(cartesianPoint.second - y);
+            float d = sqrt (dx*dx + dy*dy);
+            //cout << "distance: " << d << endl;
+            return d;
+        }
+
+        float distanceFrom (const BezCoord& cartesianPoint) const {
+            float dx = abs(cartesianPoint.x() - x);
+            float dy = abs(cartesianPoint.y() - y);
+            float d = sqrt (dx*dx + dy*dy);
+            return d;
         }
 
         /*!
@@ -186,10 +205,28 @@ namespace morph {
         //@}
 
         /*!
-         * Set true if this is a boundary hex - one on the outside
+         * Set to true if this Hex has been marked as being on a
+         * boundary. It is expected that client code will then re-set
+         * the neighbour relations so that onBoundary() would return
+         * true.
+         */
+        bool markedAsBoundary = false;
+
+        /*!
+         * Return true if this is a boundary hex - one on the outside
          * edge of a hex grid.
          */
-        bool onBoundary  = false;
+        bool onBoundary() {
+            if (this->has_ne == false
+                || this->has_nne == false
+                || this->has_nnw == false
+                || this->has_nw == false
+                || this->has_nsw == false
+                || this->has_nse == false) {
+                return true;
+            }
+            return false;
+        }
 
         /*!
          * Setters for neighbour iterators
@@ -221,6 +258,30 @@ namespace morph {
         }
         //@}
 
+        /*!
+         * Un-set neighbour iterators
+         */
+        //@{
+        void unset_ne (void) {
+            this->has_ne = false;
+        }
+        void unset_nne (void) {
+            this->has_nne = false;
+        }
+        void unset_nnw (void) {
+            this->has_nnw = false;
+        }
+        void unset_nw (void) {
+            this->has_nw = false;
+        }
+        void unset_nsw (void) {
+            this->has_nsw = false;
+        }
+        void unset_nse (void) {
+            this->has_nse = false;
+        }
+        //@}
+
         //private:??
         /*!
          * Nearest neighbours
@@ -235,6 +296,8 @@ namespace morph {
          * pointers means we can't do any kind of check to see if the
          * iterator is valid, so we have to keep a separate boolean
          * value.
+         *
+         * FIXME: Use std::bitset for these boolean switches?
          */
         bool has_ne = false;
 

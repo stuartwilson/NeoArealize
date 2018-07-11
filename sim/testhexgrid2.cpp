@@ -11,10 +11,10 @@ int main()
     try {
         ReadCurves r("../trial.svg");
 
-        HexGrid hg(0.01, 1);
+        HexGrid hg(0.01, 3);
         hg.setBoundary (r.getCorticalPath());
 
-        cout << hg.output() << endl;
+        //cout << hg.output() << endl;
 
     } catch (const exception& e) {
         cerr << "Caught exception reading trial.svg: " << e.what() << endl;

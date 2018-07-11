@@ -18,7 +18,6 @@
 
 using std::ceil;
 using std::abs;
-using std::cout;
 using std::endl;
 using std::stringstream;
 using std::vector;
@@ -43,9 +42,6 @@ morph::HexGrid::setBoundary (const BezCurvePath& p)
 {
     this->boundary = p;
 
-    /*
-     * Second run through; re-define the grid according to boundary.
-     */
     if (!this->boundary.isNull()) {
         DBG ("Applying boundary...");
 
@@ -54,31 +50,72 @@ morph::HexGrid::setBoundary (const BezCurvePath& p)
         vector<BezCoord> bpoints = this->boundary.getPoints (this->d);
 
         auto bpi = bpoints.begin();
-        list<Hex>::iterator lhi = this->hexen.begin();
+        list<Hex>::iterator nearbyBoundaryPoint = this->hexen.begin();
         while (bpi != bpoints.end()) {
-            lhi = this->setBoundary (*bpi++, lhi);
+            nearbyBoundaryPoint = this->setBoundary (*bpi++, nearbyBoundaryPoint);
         }
 
         // Now something like:
         // this->discardOutside();
     }
 
-
-    /*
-     * Final run through. Re-compute a suitable vector iterator for
-     * the list of Hexes. Populate neighbour pointers for each Hex.
-     */
+    // Maybe need to sort out the neighbours and possibly also the
+    //vector iterators in the remaining Hexes in hexen.
     //this->setupNeighbours();
 }
 
 list<Hex>::iterator
 morph::HexGrid::setBoundary (const BezCoord& point, list<Hex>::iterator startFrom)
 {
-    auto i = startFrom;
-    while (i != this->hexen.end()) {
-        ++i;
+    // Searching from "startFrom", search out, via neighbours until
+    // the hex closest to the boundary point is located. How to know
+    // if it's closest? When all neighbours are further from the
+    // currently closest point?
+
+    bool neighbourNearer = true;
+
+    list<Hex>::iterator h = startFrom;
+    float d = h->distanceFrom (point);
+    float d_ = 0.0f;
+
+    while (neighbourNearer == true) {
+
+        neighbourNearer = false;
+        if (h->has_ne && (d_ = h->ne->distanceFrom (point)) < d) {
+            d = d_;
+            h = h->ne;
+            neighbourNearer = true;
+
+        } else if (h->has_nne && (d_ = h->nne->distanceFrom (point)) < d) {
+            d = d_;
+            h = h->nne;
+            neighbourNearer = true;
+
+        } else if (h->has_nnw && (d_ = h->nnw->distanceFrom (point)) < d) {
+            d = d_;
+            h = h->nnw;
+            neighbourNearer = true;
+
+        } else if (h->has_nw && (d_ = h->nw->distanceFrom (point)) < d) {
+            d = d_;
+            h = h->nw;
+            neighbourNearer = true;
+
+        } else if (h->has_nsw && (d_ = h->nsw->distanceFrom (point)) < d) {
+            d = d_;
+            h = h->nsw;
+            neighbourNearer = true;
+
+        } else if (h->has_nse && (d_ = h->nse->distanceFrom (point)) < d) {
+            d = d_;
+            h = h->nse;
+            neighbourNearer = true;
+        }
     }
-    return startFrom;
+
+    DBG ("Nearest hex to point (" << point.x() << "," << point.y() << ") is at (" << h->ri << "," << h->gi << ")");
+
+    return h;
 }
 
 
@@ -170,6 +207,9 @@ morph::HexGrid::init (void)
     // Increases for each ring. Increases by 1 in each ring.
     unsigned int ringSideLen = 1;
 
+    // These are used to iterate along the six sides of the hexagonal
+    // ring that's inside, but adjacent to the hexagonal ring that's
+    // under construction.
     int walkstart = 0;
     int walkinc = 0;
     int walkmin = walkstart-1;
@@ -542,5 +582,5 @@ morph::HexGrid::init (void)
         nextPrevRing = tmp;
     }
 
-    DBG ("finished");
+    DBG ("Finished creating " << this->hexen.size() << " hexes in " << maxRing << " rings.");
 }
