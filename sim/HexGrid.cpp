@@ -152,7 +152,7 @@ morph::HexGrid::init (void)
     vector<list<Hex>::iterator>* prevRing = &prevRingEven;
     vector<list<Hex>::iterator>* nextPrevRing = &prevRingOdd;
 
-    // Direction iterators used in the loop.
+    // Direction iterators used in the loop for creating hexes
     int ri = 0;
     int gi = 0;
 
@@ -181,7 +181,7 @@ morph::HexGrid::init (void)
 
     for (unsigned int ring = 1; ring <= maxRing; ++ring) {
 
-        DBG2 ("************** numInRing: " << numInRing << " ******************");
+        DBG2 ("\n\n************** numInRing: " << numInRing << " ******************");
 
         // Set start ri, gi. This moves up a hex and left a hex onto
         // the start hex of the new ring.
@@ -467,6 +467,7 @@ morph::HexGrid::init (void)
             --lasthi;
 
             // 1. Set my SW neighbour to be the previous hex in THIS ring, if possible
+            DBG2(" g walk: i is " << i << " and ringSideLen-1 is " << (ringSideLen-1));
             if (i == (ringSideLen-1)) {
                 // Special case at end; on last g walk hex, set the NE neighbour
                 // Set my NE neighbour for the first hex in the row.
@@ -481,7 +482,8 @@ morph::HexGrid::init (void)
                 DBG2 (" g walk: Set me (" << hi->ri << "," << hi->gi << ") as NE neighbour for hex at (" << lasthi->ri << "," << lasthi->gi << ")");
                 // Set me as NE neighbour to previous hex in the ring:
                 lasthi->set_nne (hi);
-            } else {
+            }
+            if (i == 0) { // i may be equal to 0 AND to (ringSideLen-1) if ringSideLen == 1.
                 // Set my SE neighbour for the first hex in the row.
                 hi->set_nse (lasthi);
                 DBG2 (" g walk: Set me (" << hi->ri << "," << hi->gi << ") as NW neighbour for last walk's hex at (" << lasthi->ri << "," << lasthi->gi << ")");
