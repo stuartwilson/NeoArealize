@@ -299,25 +299,25 @@ morph::HexGrid::init (void)
     // Increases for each ring. Increases by 1 in each ring.
     unsigned int ringSideLen = 1;
 
-    unsigned int walkstart = 0;
-    unsigned int walkinc = 0;
-    unsigned int walkmin = walkstart-1;
-    unsigned int walkmax = 1;
+    int walkstart = 0;
+    int walkinc = 0;
+    int walkmin = walkstart-1;
+    int walkmax = 1;
 
     for (unsigned int ring = 1; ring <= maxRing; ++ring) {
 
         DBG2 ("************** numInRing: " << numInRing << " ******************");
 
-        // Set start ri, gi. This moves up a hex and left a hex.
-        --ri;
-        ++gi;
+        // Set start ri, gi. This moves up a hex and left a hex onto
+        // the start hex of the new ring.
+        --ri; ++gi;
 
         nextPrevRing->clear();
 
         // Now walk around the ring, in 6 walks, that will bring us
         // round to just before we started. walkstart has the starting
         // iterator number for the vertices of the hexagon.
-        DBG2 ("walkinc: " << walkinc << ", walkmin: " << walkmin << ", walkmax: " << walkmax);
+        DBG2 ("Before r; walkinc: " << walkinc << ", walkmin: " << walkmin << ", walkmax: " << walkmax);
 
         // Walk in the r direction first:
         DBG2 ("============ r walk =================");
@@ -327,13 +327,10 @@ morph::HexGrid::init (void)
             this->hexen.emplace_back (vi++, this->d, ri++, gi);
             Hex& h = this->hexen.back();
 
-            // 1. Set my W neighbour from the previous hex in THIS ring, if possible
-            // WRITEME
-
             // 2. SW neighbour
-            unsigned int j = walkstart + i - 1;
-            DBG2 ("i is " << i << ", j is " << j);
-            if (j != numeric_limits<unsigned int>::max() && j>walkmin && j<walkmax) {
+            int j = walkstart + (int)i - 1;
+            DBG2 ("i is " << i << ", j is " << j << ", walk min/max: " << walkmin << " " << walkmax);
+            if (j>walkmin && j<walkmax) {
                 // Set my SW neighbour:
                 h.nsw = (*prevRing)[j];
                 // Set me as NE neighbour to those in prevRing:
@@ -355,11 +352,11 @@ morph::HexGrid::init (void)
             nextPrevRing->push_back (&h);
         }
         walkstart += walkinc;
-        walkmin += walkinc;
-        walkmax += walkinc;
-        DBG2 ("walkinc: " << walkinc << ", walkmin: " << walkmin << ", walkmax: " << walkmax);
+        walkmin   += walkinc;
+        walkmax   += walkinc;
 
         // Walk in -b direction
+        DBG2 ("Before -b; walkinc: " << walkinc << ", walkmin: " << walkmin << ", walkmax: " << walkmax);
         DBG2 ("=========== -b walk =================");
         for (unsigned int i = 0; i<ringSideLen; ++i) {
             DBG2 ("Adding hex at " << ri << "," << gi);
@@ -370,9 +367,9 @@ morph::HexGrid::init (void)
             // WRITEME
 
             // 2. W neighbour
-            unsigned int j = walkstart + i - 1;
+            int j = walkstart + (int)i - 1;
             DBG2 ("i is " << i << ", j is " << j << " prevRing->size(): " <<prevRing->size() );
-            if (j != numeric_limits<unsigned int>::max()  && j>walkmin && j<prevRing->size()) {
+            if (j>walkmin && j<walkmax) {
                 // Set my W neighbour:
                 h.nw = (*prevRing)[j];
                 // Set me as E neighbour to those in prevRing:
@@ -384,7 +381,7 @@ morph::HexGrid::init (void)
 
             // 3. Set my SW neighbour:
             DBG2 ("i is " << i << ", j is " << j);
-            if (j<prevRing->size()) {
+            if (j<walkmax) {
                 h.nsw = (*prevRing)[j];
                 // Set me as NE neighbour:
                 DBG2("-b walk: Set me (" << h.ri << "," << h.gi << ") as NE neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
@@ -410,9 +407,9 @@ morph::HexGrid::init (void)
             // WRITEME
 
             // 2. NW neighbour
-            unsigned int j = walkstart + i - 1;
+            int j = walkstart + (int)i - 1;
             DBG2 ("i is " << i << ", j is " << j);
-            if (j != numeric_limits<unsigned int>::max() && j<prevRing->size()) {
+            if (j>walkmin && j<walkmax) {
                 // Set my NW neighbour:
                 h.nnw = (*prevRing)[j];
                 // Set me as SE neighbour to those in prevRing:
@@ -423,7 +420,7 @@ morph::HexGrid::init (void)
             DBG2 ("i is " << i << ", j is " << j);
 
             // 3. Set my W neighbour:
-            if (j<prevRing->size()) {
+            if (j<walkmax) {
                 h.nw = (*prevRing)[j];
                 // Set me as E neighbour:
                 DBG2("-g walk: Set me (" << h.ri << "," << h.gi << ") as E neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
@@ -450,9 +447,9 @@ morph::HexGrid::init (void)
             // WRITEME
 
             // 2. NE neighbour:
-            unsigned int j = walkstart + i - 1;
+            int j = walkstart + (int)i - 1;
             DBG2 ("i is " << i << ", j is " << j);
-            if (j != numeric_limits<unsigned int>::max() && j<prevRing->size()) {
+            if (j>walkmin && j<walkmax) {
                 // Set my NE neighbour:
                 h.nne = (*prevRing)[j];
                 // Set me as SW neighbour to those in prevRing:
@@ -463,7 +460,7 @@ morph::HexGrid::init (void)
             DBG2 ("i is " << i << ", j is " << j);
 
             // 3. Set my NW neighbour:
-            if (j<prevRing->size()) {
+            if (j<walkmax) {
                 h.nnw = (*prevRing)[j];
                 // Set me as SE neighbour:
                 DBG2("-r walk: Set me (" << h.ri << "," << h.gi << ") as SE neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
@@ -488,9 +485,9 @@ morph::HexGrid::init (void)
             // WRITEME
 
             // 2. E neighbour:
-            unsigned int j = walkstart + i - 1;
+            int j = walkstart + (int)i - 1;
             DBG2 ("i is " << i << ", j is " << j);
-            if (j != numeric_limits<unsigned int>::max() && j<prevRing->size()) {
+            if (j>walkmin && j<walkmax) {
                 // Set my E neighbour:
                 h.ne = (*prevRing)[j];
                 // Set me as W neighbour to those in prevRing:
@@ -501,7 +498,7 @@ morph::HexGrid::init (void)
             DBG2 ("i is " << i << ", j is " << j);
 
             // 3. Set my NE neighbour:
-            if (j<prevRing->size()) {
+            if (j<walkmax) {
                 h.nne = (*prevRing)[j];
                 // Set me as SW neighbour:
                 DBG2(" b walk: Set me (" << h.ri << "," << h.gi << ") as SW neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
@@ -529,9 +526,9 @@ morph::HexGrid::init (void)
             // WRITEME
 
             // 2. E neighbour:
-            unsigned int j = walkstart + i - 1;
+            int j = walkstart + (int)i - 1;
             DBG2 ("i is " << i << ", j is " << j);
-            if (j != numeric_limits<unsigned int>::max() && j<prevRing->size()) {
+            if (j>walkmin && j<walkmax) {
                 // Set my SE neighbour:
                 h.nse = (*prevRing)[j];
                 // Set me as NW neighbour to those in prevRing:
@@ -542,7 +539,7 @@ morph::HexGrid::init (void)
             DBG2 ("i is " << i << ", j is " << j);
 
             // 3. Set my E neighbour:
-            if (j<prevRing->size()) {
+            if (j<walkmax) {
                 h.ne = (*prevRing)[j];
                 // Set me as W neighbour:
                 DBG2(" g walk: Set me (" << h.ri << "," << h.gi << ") as W neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
@@ -554,17 +551,21 @@ morph::HexGrid::init (void)
         }
         // Should now be on the last hex.
 
+        // Update the walking increments for finding the vertices of
+        // the hexagonal ring. These are for walking around the ring
+        // *inside* the ring of hexes being created and hence note
+        // that I set walkinc to numInRing/6 BEFORE incrementing
+        // numInRing by 6, below.
+        walkstart = 0;
+        walkinc = numInRing / 6;
+        walkmin = walkstart - 1;
+        walkmax = walkmin + 1 + walkinc;
+
         // Always 6 additional hexes in the next ring out
         numInRing += 6;
 
         // And ring side length goes up by 1
         ringSideLen++;
-
-        // Update the walking increments for finding the vertices of the hexagonal ring.
-        walkstart = 0;
-        walkinc = numInRing / 6;
-        walkmin = walkstart - 1;
-        walkmax = walkmin + 1 + walkinc;
 
         // Swap prevRing and nextPrevRing.
         vector<Hex*>* tmp = prevRing;
@@ -573,5 +574,5 @@ morph::HexGrid::init (void)
         nextPrevRing = tmp;
     }
 
-    DBG ("init() done");
+    DBG ("finished");
 }
