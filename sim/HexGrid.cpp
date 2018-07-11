@@ -325,31 +325,44 @@ morph::HexGrid::init (void)
 
             DBG2 ("Adding hex at " << ri << "," << gi);
             this->hexen.emplace_back (vi++, this->d, ri++, gi);
-            Hex& h = this->hexen.back();
+            //Hex& h = this->hexen.back();
+            auto hi = this->hexen.rbegin();
+
+            // 1. Set my W neighbour to be the previous hex in THIS ring, if possible
+            if (i > 0) {
+                auto lasthi = hi;
+                ++lasthi; // ++ steps one back along the list
+                hi->nw = &(*lasthi); // FIXME: When appropriate,
+                                     // change to using iterators not
+                                     // pointers in Hex and prevRing.
+                DBG2(" r walk: Set me (" << hi->ri << "," << hi->gi << ") as E neighbour for hex at (" << lasthi->ri << "," << lasthi->gi << ")");
+                // Set me as E neighbour to those in prevRing:
+                lasthi->ne = &(*hi);
+            }
 
             // 2. SW neighbour
             int j = walkstart + (int)i - 1;
             DBG2 ("i is " << i << ", j is " << j << ", walk min/max: " << walkmin << " " << walkmax);
             if (j>walkmin && j<walkmax) {
                 // Set my SW neighbour:
-                h.nsw = (*prevRing)[j];
+                hi->nsw = &(*(*prevRing)[j]);
                 // Set me as NE neighbour to those in prevRing:
-                DBG2(" r walk: Set me (" << h.ri << "," << h.gi << ") as NE neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
-                (*prevRing)[j]->nne = &h;
+                DBG2(" r walk: Set me (" << hi->ri << "," << hi->gi << ") as NE neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
+                (*prevRing)[j]->nne = &(*hi);
             }
             ++j;
             DBG2 ("i is " << i << ", j is " << j);
 
             // 3. Set my SE neighbour:
             if (j<walkmax) {
-                h.nse = (*prevRing)[j];
+                hi->nse = static_cast<Hex*>((*prevRing)[j]);
                 // Set me as NW neighbour:
-                DBG2(" r walk: Set me (" << h.ri << "," << h.gi << ") as NW neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
-                (*prevRing)[j]->nnw = &h;
+                DBG2(" r walk: Set me (" << hi->ri << "," << hi->gi << ") as NW neighbour for hex at (" << (*prevRing)[j]->ri << "," << (*prevRing)[j]->gi << ")");
+                (*prevRing)[j]->nnw = &(*hi);
             }
 
             // Put in me nextPrevRing:
-            nextPrevRing->push_back (&h);
+            nextPrevRing->push_back (&(*hi));
         }
         walkstart += walkinc;
         walkmin   += walkinc;
