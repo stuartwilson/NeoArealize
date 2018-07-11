@@ -14,7 +14,7 @@
 
 #define DBGSTREAM std::cout
 #define DEBUG 1
-#define DEBUG2 1
+//#define DEBUG2 1
 #include <morph/MorphDbg.h>
 
 using std::ceil;
@@ -415,13 +415,13 @@ morph::HexGrid::init (void)
             // 1. Set my SE neighbour to be the previous hex in THIS ring, if possible
             if (i > 0) {
                 hi->set_nse (lasthi);
-                DBG2 (" b walk: Set me (" << hi->ri << "," << hi->gi << ") as NW neighbour for hex at (" << lasthi->ri << "," << lasthi->gi << ")");
+                DBG2 (" b in-ring: Set me (" << hi->ri << "," << hi->gi << ") as NW neighbour for hex at (" << lasthi->ri << "," << lasthi->gi << ")");
                 // Set me as NW neighbour to previous hex in the ring:
                 lasthi->set_nnw (hi);
-            } else {
+            } else { // i == 0
                 // Set my E neighbour for the first hex in the row.
                 hi->set_ne (lasthi);
-                DBG2 (" b walk: Set me (" << hi->ri << "," << hi->gi << ") as W neighbour for last walk's hex at (" << lasthi->ri << "," << lasthi->gi << ")");
+                DBG2 (" b in-ring: Set me (" << hi->ri << "," << hi->gi << ") as W neighbour for last walk's hex at (" << lasthi->ri << "," << lasthi->gi << ")");
                 // Set me as W neighbour to previous hex in the ring:
                 lasthi->set_nw (hi);
             }
@@ -458,8 +458,6 @@ morph::HexGrid::init (void)
         DBG2 ("============ g walk =================");
         for (unsigned int i = 0; i<ringSideLen; ++i) {
 
-            // NB: on very last, don't emplace_back, as we already
-            // emplaced this at the start of this loop.
             DBG2 ("Adding hex at " << ri << "," << gi);
             this->hexen.emplace_back (vi++, this->d, ri, gi++);
             auto hi = this->hexen.end(); hi--;
@@ -473,20 +471,20 @@ morph::HexGrid::init (void)
                 // Set my NE neighbour for the first hex in the row.
                 hi->set_nne ((*nextPrevRing)[0]); // (*nextPrevRing)[0] is an iterator to the first hex
 
-                DBG2 (" g walk: Set me (" << hi->ri << "," << hi->gi << ") as SW neighbour for this ring's first hex at (" << (*nextPrevRing)[0]->ri << "," << (*nextPrevRing)[0]->gi << ")");
+                DBG2 (" g in-ring: Set me (" << hi->ri << "," << hi->gi << ") as SW neighbour for this ring's first hex at (" << (*nextPrevRing)[0]->ri << "," << (*nextPrevRing)[0]->gi << ")");
                 // Set me as NW neighbour to previous hex in the ring:
                 (*nextPrevRing)[0]->set_nsw (hi);
 
-            } else if (i > 0) {
+            }
+            if (i > 0) {
                 hi->set_nsw (lasthi);
-                DBG2 (" g walk: Set me (" << hi->ri << "," << hi->gi << ") as NE neighbour for hex at (" << lasthi->ri << "," << lasthi->gi << ")");
+                DBG2 (" g in-ring: Set me (" << hi->ri << "," << hi->gi << ") as NE neighbour for hex at (" << lasthi->ri << "," << lasthi->gi << ")");
                 // Set me as NE neighbour to previous hex in the ring:
                 lasthi->set_nne (hi);
-            }
-            if (i == 0) { // i may be equal to 0 AND to (ringSideLen-1) if ringSideLen == 1.
+            } else {
                 // Set my SE neighbour for the first hex in the row.
                 hi->set_nse (lasthi);
-                DBG2 (" g walk: Set me (" << hi->ri << "," << hi->gi << ") as NW neighbour for last walk's hex at (" << lasthi->ri << "," << lasthi->gi << ")");
+                DBG2 (" g in-ring: Set me (" << hi->ri << "," << hi->gi << ") as NW neighbour for last walk's hex at (" << lasthi->ri << "," << lasthi->gi << ")");
                 // Set me as NW neighbour to previous hex in the ring:
                 lasthi->set_nnw (hi);
             }
