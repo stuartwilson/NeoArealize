@@ -7,7 +7,6 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
-#include <tuple>
 #include <stdexcept>
 #include <morph/BezCurvePath.h>
 #include <morph/BezCoord.h>
@@ -23,8 +22,6 @@ using std::cout;
 using std::endl;
 using std::stringstream;
 using std::vector;
-using std::tuple;
-using std::make_tuple;
 using std::runtime_error;
 using std::numeric_limits;
 
@@ -32,11 +29,10 @@ using morph::BezCurvePath;
 using morph::BezCoord;
 using morph::Hex;
 
-morph::HexGrid::HexGrid (float d_, float x_span_, float y_span_, float z_)
+morph::HexGrid::HexGrid (float d_, float x_span_, float z_)
 {
     this->d = d_;
     this->x_span = x_span_;
-    this->y_span = y_span_;
     this->z = z_;
 
     this->init();

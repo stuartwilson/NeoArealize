@@ -52,16 +52,9 @@ namespace morph {
     {
     public:
         /*!
-         * Constructor - will need to determine the best argument list for this.
+         * Constructor taking index, dimension and integer position
+         * indices. Computes Cartesian location from these.
          */
-        Hex (const unsigned int& idx, const float& d_,
-             const float& x_, const float& y_) {
-            this->vi = idx;
-            this->d = d_;
-            this->x = x_;
-            this->y = y_;
-        }
-
         Hex (const unsigned int& idx, const float& d_,
              const int& r_, const int& g_) {
             this->vi = idx;
@@ -71,6 +64,9 @@ namespace morph {
             this->computeCartesian();
         }
 
+        /*!
+         * Produce a string containing information about this hex.
+         */
         string output (void) const {
             string s("Hex ");
             s += to_string(this->vi).substr(0,2) + " (";
@@ -96,6 +92,19 @@ namespace morph {
                 s += "NE: (" + to_string(this->nne->ri).substr(0,4) + "," + to_string(this->nne->gi).substr(0,4) + ") ";
             }
 
+            return s;
+        }
+
+        /*!
+         * Produce a string containing information about this hex,
+         * focussing on Cartesian position information.
+         */
+        string outputCart (void) const {
+            string s("Hex ");
+            s += to_string(this->vi).substr(0,2) + " (";
+            s += to_string(this->ri).substr(0,4) + ",";
+            s += to_string(this->gi).substr(0,4) + ") is at (x,y) = ("
+                + to_string(this->x).substr(0,4) +"," +  to_string(this->y).substr(0,4) + ")";
             return s;
         }
 

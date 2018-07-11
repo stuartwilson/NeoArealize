@@ -17,11 +17,11 @@ namespace morph {
     {
     public:
         /*!
-         * Construct the hex grid with a hex to hex distance of
-         * d (centre to centre) and approximate spans of width
-         * and height. Set z to fixz.
+         * Construct the hexagonal hex grid with a hex to hex distance
+         * of d (centre to centre) and approximate diameter of
+         * x_span_. Set z to z_.
          */
-        HexGrid (float d_, float x_span_, float y_span_, float z_ = 0.0f);
+        HexGrid (float d_, float x_span_, float z_ = 0.0f);
 
         /*!
          * Sets boundry to p, then runs the code to discard hexes
@@ -77,15 +77,10 @@ namespace morph {
         float d = 1.0f;
 
         /*!
-          * Make hexes in the horizonal direction over a span of
+         * Give the hexagonal hex grid a diameter of approximately
          * x_span.
          */
         float x_span = 10.0f;
-
-        /*!
-         * Make hexes in the vertical direction over a span of y_span.
-         */
-        float y_span = 10.0f;
 
         /*!
          * The z coordinate of this hex grid layer
