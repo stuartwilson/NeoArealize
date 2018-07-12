@@ -11,9 +11,10 @@ int main()
     try {
         ReadCurves r("../trial.svg");
 
-        HexGrid hg(0.01, 3);
+        HexGrid hg(0.05, 3);
         hg.setBoundary (r.getCorticalPath());
 
+        cout << hg.extent() << endl;
         //cout << hg.output() << endl;
 
     } catch (const exception& e) {

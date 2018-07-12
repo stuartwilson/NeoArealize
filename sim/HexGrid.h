@@ -47,6 +47,12 @@ namespace morph {
         string output (void) const;
 
         /*!
+         * Show the coordinates of the vertices of the overall hex
+         * grid generated.
+         */
+        string extent (void) const;
+
+        /*!
          * The list of hexes.
          */
         list<Hex> hexen;
@@ -60,6 +66,17 @@ namespace morph {
         void init (void);
 
         /*!
+         * Recursively mark hexes to be kept if they are inside the boundary.
+         */
+        void recurseHexes (list<Hex>::iterator hi);
+
+        /*!
+         * Discard hexes in this->hexen that are outside the boundary.
+         */
+        void discardOutside (void);
+
+#ifdef DEPRECATED
+        /*!
          * Check to see if the Hex candidate has the same ri, gi, bi
          * as the six candidates held in the vector of ints
          * neighbourRGB. The return code is 0: candidate does not
@@ -70,6 +87,7 @@ namespace morph {
          * candidate is a SE neighbour.
          */
         int checkNeighbour (const Hex& candidate, const vector<int>& neighbourRGB);
+#endif
 
         /*!
          * Centre to centre hex distance.
@@ -91,6 +109,19 @@ namespace morph {
          * A boundary to apply to the initial, rectangular grid.
          */
         BezCurvePath boundary;
+
+        /*!
+         * Hex references to the hexes on the vertices of the
+         * hexagonal grid. Configured during init().
+         */
+        //@{
+        list<Hex>::iterator vertexE;
+        list<Hex>::iterator vertexNE;
+        list<Hex>::iterator vertexNW;
+        list<Hex>::iterator vertexW;
+        list<Hex>::iterator vertexSW;
+        list<Hex>::iterator vertexSE;
+        //@}
     };
 
 } // namespace morph

@@ -47,16 +47,25 @@ morph::HexGrid::setBoundary (const BezCurvePath& p)
 
         // Compute the points on the boundary using the hex to hex
         // spacing as the step size.
-        vector<BezCoord> bpoints = this->boundary.getPoints (this->d);
+        vector<BezCoord> bpoints = this->boundary.getPoints (this->d - this->d/10.0f);
 
+        pair<float,float> c =  BezCurvePath::getCentroid (bpoints);
+        DBG ("Boundary centroid: " << c.first << "," << c.second);
+
+        // Offset the boundary by the centroid, which should now be 0,0.
         auto bpi = bpoints.begin();
+        while (bpi != bpoints.end()) {
+            bpi->subtract(c);
+            ++bpi;
+        }
+
+        bpi = bpoints.begin();
         list<Hex>::iterator nearbyBoundaryPoint = this->hexen.begin();
         while (bpi != bpoints.end()) {
             nearbyBoundaryPoint = this->setBoundary (*bpi++, nearbyBoundaryPoint);
         }
 
-        // Now something like:
-        // this->discardOutside();
+        this->discardOutside();
     }
 
     // Maybe need to sort out the neighbours and possibly also the
@@ -115,10 +124,68 @@ morph::HexGrid::setBoundary (const BezCoord& point, list<Hex>::iterator startFro
 
     DBG ("Nearest hex to point (" << point.x() << "," << point.y() << ") is at (" << h->ri << "," << h->gi << ")");
 
+    // Mark it for being on the boundary
+    h->boundaryHex = true;
+
     return h;
 }
 
+void
+morph::HexGrid::recurseHexes (list<Hex>::iterator hi)
+{
+    if (hi->boundaryHex == true) {
+        hi->insideBoundary = true;
+        return;
 
+    } else if (hi->insideBoundary == true) {
+        return;
+
+    } else {
+
+        hi->insideBoundary = true;
+
+        if (hi->has_ne) {
+            this->recurseHexes (hi->ne);
+        }
+        if (hi->has_nne) {
+            this->recurseHexes (hi->nne);
+        }
+        if (hi->has_nnw) {
+            this->recurseHexes (hi->nnw);
+        }
+        if (hi->has_nw) {
+            this->recurseHexes (hi->nw);
+        }
+        if (hi->has_nsw) {
+            this->recurseHexes (hi->nsw);
+        }
+        if (hi->has_nse) {
+            this->recurseHexes (hi->nse);
+        }
+    }
+}
+
+void
+morph::HexGrid::discardOutside (void)
+{
+    // Mark inside hexes to keep in one run through, then discard
+    // unmarked hexes.
+    this->recurseHexes (this->hexen.begin());
+
+    unsigned int numInside = 0;
+    unsigned int numOutside = 0;
+    for (auto hi : this->hexen) {
+        if (hi.insideBoundary == true) {
+            ++numInside;
+        } else {
+            ++numOutside;
+        }
+    }
+
+    DBG("Num inside: " << numInside << "; num outside: " << numOutside);
+}
+
+#ifdef DEPRECATED
 // Opportunity to do this vectorised with SIMD/SSE or similar.
 int
 morph::HexGrid::checkNeighbour (const Hex& candidate, const vector<int>& neighbourRGB)
@@ -134,6 +201,7 @@ morph::HexGrid::checkNeighbour (const Hex& candidate, const vector<int>& neighbo
     }
     return neighbourNum;
 }
+#endif
 
 unsigned int
 morph::HexGrid::num (void) const
@@ -158,6 +226,20 @@ morph::HexGrid::output (void) const
         ss << i->output() << endl;
         ++i;
     }
+    return ss.str();
+}
+
+string
+morph::HexGrid::extent (void) const
+{
+    stringstream ss;
+    ss << "Grid vertices: \n"
+       << "           NW: (" << this->vertexNW->x << "," << this->vertexNW->y << ") "
+       << "      NE: (" << this->vertexNE->x << "," << this->vertexNE->y << ")\n"
+       << "     W: (" << this->vertexW->x << "," << this->vertexW->y << ") "
+       << "                              E: (" << this->vertexE->x << "," << this->vertexE->y << ")\n"
+       << "           SW: (" << this->vertexSW->x << "," << this->vertexSW->y << ") "
+       << "      SE: (" << this->vertexSE->x << "," << this->vertexSE->y << ")";
     return ss.str();
 }
 
@@ -240,6 +322,9 @@ morph::HexGrid::init (void)
             auto lasthi = hi;
             --lasthi;
 
+            // Set vertex
+            if (i==0) { vertexNW = hi; }
+
             // 1. Set my W neighbour to be the previous hex in THIS ring, if possible
             if (i > 0) {
                 hi->set_nw (lasthi);
@@ -290,6 +375,9 @@ morph::HexGrid::init (void)
             auto hi = this->hexen.end(); hi--;
             auto lasthi = hi;
             --lasthi;
+
+            // Set vertex
+            if (i==0) { vertexNE = hi; }
 
             // 1. Set my NW neighbour to be the previous hex in THIS ring, if possible
             if (i > 0) {
@@ -344,6 +432,9 @@ morph::HexGrid::init (void)
             auto lasthi = hi;
             --lasthi;
 
+            // Set vertex
+            if (i==0) { vertexE = hi; }
+
             // 1. Set my NE neighbour to be the previous hex in THIS ring, if possible
             if (i > 0) {
                 hi->set_nne (lasthi);
@@ -397,6 +488,9 @@ morph::HexGrid::init (void)
             auto lasthi = hi;
             --lasthi;
 
+            // Set vertex
+            if (i==0) { vertexSE = hi; }
+
             // 1. Set my E neighbour to be the previous hex in THIS ring, if possible
             if (i > 0) {
                 hi->set_ne (lasthi);
@@ -447,6 +541,9 @@ morph::HexGrid::init (void)
             auto hi = this->hexen.end(); hi--;
             auto lasthi = hi;
             --lasthi;
+
+            // Set vertex
+            if (i==0) { vertexSW = hi; }
 
             // 1. Set my SE neighbour to be the previous hex in THIS ring, if possible
             if (i > 0) {
@@ -499,6 +596,9 @@ morph::HexGrid::init (void)
             auto hi = this->hexen.end(); hi--;
             auto lasthi = hi;
             --lasthi;
+
+            // Set vertex
+            if (i==0) { vertexW = hi; }
 
             // 1. Set my SW neighbour to be the previous hex in THIS ring, if possible
             DBG2(" g walk: i is " << i << " and ringSideLen-1 is " << (ringSideLen-1));

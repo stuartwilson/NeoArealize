@@ -210,7 +210,12 @@ namespace morph {
          * the neighbour relations so that onBoundary() would return
          * true.
          */
-        bool markedAsBoundary = false;
+        bool boundaryHex = false;
+
+        /*!
+         * Set true if this Hex is known to be inside the boundary.
+         */
+        bool insideBoundary = false;
 
         /*!
          * Return true if this is a boundary hex - one on the outside
