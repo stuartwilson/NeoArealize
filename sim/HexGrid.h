@@ -68,12 +68,19 @@ namespace morph {
         /*!
          * Recursively mark hexes to be kept if they are inside the boundary.
          */
-        void recurseHexes (list<Hex>::iterator hi);
+        void markHexesInside (list<Hex>::iterator hi);
 
         /*!
          * Discard hexes in this->hexen that are outside the boundary.
          */
         void discardOutside (void);
+
+        /*!
+         * Set true when a new boundary has been applied. This means
+         * that the vertexE, vertexW, etc pointers are no longer
+         * valid.
+         */
+        bool gridReducedToBoundary = false;
 
 #ifdef DEPRECATED
         /*!

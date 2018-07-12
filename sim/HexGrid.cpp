@@ -131,7 +131,7 @@ morph::HexGrid::setBoundary (const BezCoord& point, list<Hex>::iterator startFro
 }
 
 void
-morph::HexGrid::recurseHexes (list<Hex>::iterator hi)
+morph::HexGrid::markHexesInside (list<Hex>::iterator hi)
 {
     if (hi->boundaryHex == true) {
         hi->insideBoundary = true;
@@ -145,22 +145,22 @@ morph::HexGrid::recurseHexes (list<Hex>::iterator hi)
         hi->insideBoundary = true;
 
         if (hi->has_ne) {
-            this->recurseHexes (hi->ne);
+            this->markHexesInside (hi->ne);
         }
         if (hi->has_nne) {
-            this->recurseHexes (hi->nne);
+            this->markHexesInside (hi->nne);
         }
         if (hi->has_nnw) {
-            this->recurseHexes (hi->nnw);
+            this->markHexesInside (hi->nnw);
         }
         if (hi->has_nw) {
-            this->recurseHexes (hi->nw);
+            this->markHexesInside (hi->nw);
         }
         if (hi->has_nsw) {
-            this->recurseHexes (hi->nsw);
+            this->markHexesInside (hi->nsw);
         }
         if (hi->has_nse) {
-            this->recurseHexes (hi->nse);
+            this->markHexesInside (hi->nse);
         }
     }
 }
@@ -168,10 +168,11 @@ morph::HexGrid::recurseHexes (list<Hex>::iterator hi)
 void
 morph::HexGrid::discardOutside (void)
 {
-    // Mark inside hexes to keep in one run through, then discard
-    // unmarked hexes.
-    this->recurseHexes (this->hexen.begin());
+    // Mark those hexes inside the boundary
+    this->markHexesInside (this->hexen.begin());
 
+#ifdef DEBUG
+    // Do a little count of them:
     unsigned int numInside = 0;
     unsigned int numOutside = 0;
     for (auto hi : this->hexen) {
@@ -181,8 +182,31 @@ morph::HexGrid::discardOutside (void)
             ++numOutside;
         }
     }
-
     DBG("Num inside: " << numInside << "; num outside: " << numOutside);
+#endif
+
+    // Run through and discard those hexes outside the boundary:
+    auto hi = this->hexen.begin();
+    while (hi != this->hexen.end()) {
+        if (hi->insideBoundary == false) {
+            hi = this->hexen.erase (hi);
+        } else {
+            ++hi;
+        }
+    }
+    DBG("Number of hexes in this->hexen is now: " << this->hexen.size());
+
+    // Re-number the vector iterator in the hexes.
+    unsigned int vi = 0;
+    hi = this->hexen.begin();
+    while (hi != this->hexen.end()) {
+        DBG2 ("Old vi: " << hi->vi << " new vi: " << vi);
+        hi->vi = vi++;
+        ++hi;
+    }
+
+    // Finally, do something about the hexagonal grid vertices?
+    this->gridReducedToBoundary = true;
 }
 
 #ifdef DEPRECATED
@@ -233,13 +257,17 @@ string
 morph::HexGrid::extent (void) const
 {
     stringstream ss;
-    ss << "Grid vertices: \n"
-       << "           NW: (" << this->vertexNW->x << "," << this->vertexNW->y << ") "
-       << "      NE: (" << this->vertexNE->x << "," << this->vertexNE->y << ")\n"
-       << "     W: (" << this->vertexW->x << "," << this->vertexW->y << ") "
-       << "                              E: (" << this->vertexE->x << "," << this->vertexE->y << ")\n"
-       << "           SW: (" << this->vertexSW->x << "," << this->vertexSW->y << ") "
-       << "      SE: (" << this->vertexSE->x << "," << this->vertexSE->y << ")";
+    if (gridReducedToBoundary == false) {
+        ss << "Grid vertices: \n"
+           << "           NW: (" << this->vertexNW->x << "," << this->vertexNW->y << ") "
+           << "      NE: (" << this->vertexNE->x << "," << this->vertexNE->y << ")\n"
+           << "     W: (" << this->vertexW->x << "," << this->vertexW->y << ") "
+           << "                              E: (" << this->vertexE->x << "," << this->vertexE->y << ")\n"
+           << "           SW: (" << this->vertexSW->x << "," << this->vertexSW->y << ") "
+           << "      SE: (" << this->vertexSE->x << "," << this->vertexSE->y << ")";
+    } else {
+        ss << "Initial grid vertices are no longer valid.";
+    }
     return ss.str();
 }
 
