@@ -122,7 +122,7 @@ morph::HexGrid::setBoundary (const BezCoord& point, list<Hex>::iterator startFro
         }
     }
 
-    DBG ("Nearest hex to point (" << point.x() << "," << point.y() << ") is at (" << h->ri << "," << h->gi << ")");
+    DBG2 ("Nearest hex to point (" << point.x() << "," << point.y() << ") is at (" << h->ri << "," << h->gi << ")");
 
     // Mark it for being on the boundary
     h->boundaryHex = true;
@@ -208,24 +208,6 @@ morph::HexGrid::discardOutside (void)
     // Finally, do something about the hexagonal grid vertices?
     this->gridReducedToBoundary = true;
 }
-
-#ifdef DEPRECATED
-// Opportunity to do this vectorised with SIMD/SSE or similar.
-int
-morph::HexGrid::checkNeighbour (const Hex& candidate, const vector<int>& neighbourRGB)
-{
-    int neighbourNum = 0;
-    for (unsigned int i = 0; i<18; i+=3) {
-        if (neighbourRGB[i] == candidate.ri
-            && neighbourRGB[i+1] == candidate.gi
-            /*&& neighbourRBG[i+2] == candidate.bi*/) {
-            neighbourNum = (i+1)/3;
-            break;
-        }
-    }
-    return neighbourNum;
-}
-#endif
 
 unsigned int
 morph::HexGrid::num (void) const
