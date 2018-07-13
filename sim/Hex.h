@@ -1,3 +1,9 @@
+/*
+ * Author: Seb James
+ *
+ * Date: 2018/07
+ */
+
 #ifndef _HEX_H_
 #define _HEX_H_
 
@@ -74,29 +80,33 @@ namespace morph {
          */
         string output (void) const {
             string s("Hex ");
-            s += to_string(this->vi).substr(0,2) + " (";
+            s += to_string(this->vi) + " (";
             s += to_string(this->ri).substr(0,4) + ",";
             s += to_string(this->gi).substr(0,4) + "). ";
 
             if (this->has_ne) {
-                s += "E: (" + to_string(this->ne->ri).substr(0,4) + "," + to_string(this->ne->gi).substr(0,4) + ") ";
+                s += "E: (" + to_string(this->ne->ri).substr(0,4) + "," + to_string(this->ne->gi).substr(0,4) + ") " + (this->ne->boundaryHex == true ? "OB":"") + " ";
             }
             if (this->has_nse) {
-                s += "SE: (" + to_string(this->nse->ri).substr(0,4) + "," + to_string(this->nse->gi).substr(0,4) + ") ";
+                s += "SE: (" + to_string(this->nse->ri).substr(0,4) + "," + to_string(this->nse->gi).substr(0,4) + ") " + (this->nse->boundaryHex == true ? "OB":"") + " ";
             }
             if (this->has_nsw) {
-                s += "SW: (" + to_string(this->nsw->ri).substr(0,4) + "," + to_string(this->nsw->gi).substr(0,4) + ") ";
+                s += "SW: (" + to_string(this->nsw->ri).substr(0,4) + "," + to_string(this->nsw->gi).substr(0,4) + ") " + (this->nsw->boundaryHex == true ? "OB":"") + " ";
             }
             if (this->has_nw) {
-                s += "W: (" + to_string(this->nw->ri).substr(0,4) + "," + to_string(this->nw->gi).substr(0,4) + ") ";
+                s += "W: (" + to_string(this->nw->ri).substr(0,4) + "," + to_string(this->nw->gi).substr(0,4) + ") " + (this->nw->boundaryHex == true ? "OB":"") + " ";
             }
             if (this->has_nnw) {
-                s += "NW: (" + to_string(this->nnw->ri).substr(0,4) + "," + to_string(this->nnw->gi).substr(0,4) + ") ";
+                s += "NW: (" + to_string(this->nnw->ri).substr(0,4) + "," + to_string(this->nnw->gi).substr(0,4) + ") " + (this->nnw->boundaryHex == true ? "OB":"") + " ";
             }
             if (this->has_nne) {
-                s += "NE: (" + to_string(this->nne->ri).substr(0,4) + "," + to_string(this->nne->gi).substr(0,4) + ") ";
+                s += "NE: (" + to_string(this->nne->ri).substr(0,4) + "," + to_string(this->nne->gi).substr(0,4) + ") " + (this->nne->boundaryHex == true ? "OB":"") + " ";
             }
-
+            if (this->boundaryHex) {
+                s += "(ON boundary)";
+            } else  {
+                s += "(not boundary)";
+            }
             return s;
         }
 
