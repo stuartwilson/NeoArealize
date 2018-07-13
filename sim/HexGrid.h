@@ -1,3 +1,9 @@
+/*
+ * Author: Seb James
+ *
+ * Date: 2018/07
+ */
+
 #ifndef _HEXGRID_H_
 #define _HEXGRID_H_
 
@@ -91,6 +97,25 @@ namespace morph {
          * Hex to @a point.
          */
         list<Hex>::iterator setBoundary (const BezCoord& point, list<Hex>::iterator startFrom);
+
+        /*!
+         * Determine whether the boundary is contiguous
+         */
+        bool boundaryContiguous (void) const;
+
+        /*!
+         * Determine whether the boundary is contiguous, starting from
+         * the boundary Hex iterator #bhi.
+         */
+        bool boundaryContiguous (list<Hex>::const_iterator bhi) const;
+
+        /*!
+         * Find a hex, any hex, that's on the boundary specified by
+         * #boundary. This assumes that setBoundary (const
+         * BezCurvePath&) has been called to mark the Hexes that lie
+         * on the boundary.
+         */
+        bool findBoundaryHex (list<Hex>::const_iterator& hi) const;
 
         /*!
          * Recursively mark hexes to be kept if they are inside the

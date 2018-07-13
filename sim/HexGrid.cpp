@@ -1,12 +1,18 @@
 /*!
  * Implementation of HexGrid
+ *
+ * Author: Seb James
+ *
+ * Date: 2018/07
  */
+
 #include "HexGrid.h"
 #include <cmath>
 #include <limits>
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <set>
 #include <stdexcept>
 #include <morph/BezCurvePath.h>
 #include <morph/BezCoord.h>
@@ -21,6 +27,7 @@ using std::abs;
 using std::endl;
 using std::stringstream;
 using std::vector;
+using std::set;
 using std::runtime_error;
 using std::numeric_limits;
 
@@ -45,9 +52,9 @@ morph::HexGrid::setBoundary (const BezCurvePath& p)
     if (!this->boundary.isNull()) {
         DBG ("Applying boundary...");
 
-        // Compute the points on the boundary using the hex to hex
-        // spacing as the step size.
-        vector<BezCoord> bpoints = this->boundary.getPoints (this->d - this->d/10.0f);
+        // Compute the points on the boundary using half of the hex to
+        // hex spacing as the step size.
+        vector<BezCoord> bpoints = this->boundary.getPoints (this->d/2.0f);
 
         pair<float,float> c =  BezCurvePath::getCentroid (bpoints);
         DBG ("Boundary centroid: " << c.first << "," << c.second);
@@ -63,14 +70,21 @@ morph::HexGrid::setBoundary (const BezCurvePath& p)
         list<Hex>::iterator nearbyBoundaryPoint = this->hexen.begin();
         while (bpi != bpoints.end()) {
             nearbyBoundaryPoint = this->setBoundary (*bpi++, nearbyBoundaryPoint);
+            DBG ("Added boundary point " << nearbyBoundaryPoint->ri << "," << nearbyBoundaryPoint->gi);
         }
 
+        // Check that the boundary is contiguous.
+        if (this->boundaryContiguous (nearbyBoundaryPoint) == false) {
+            stringstream ee;
+            ee << "The boundary which was constructed from "
+               << p.name << " is not a contiguous sequence of hexes.";
+            throw runtime_error (ee.str());
+        }
+
+        // Given that the boundary IS contiguous, can now discard
+        // hexes outside the boundary.
         this->discardOutside();
     }
-
-    // Maybe need to sort out the neighbours and possibly also the
-    //vector iterators in the remaining Hexes in hexen.
-    //this->setupNeighbours();
 }
 
 list<Hex>::iterator
@@ -128,6 +142,124 @@ morph::HexGrid::setBoundary (const BezCoord& point, list<Hex>::iterator startFro
     h->boundaryHex = true;
 
     return h;
+}
+
+bool
+morph::HexGrid::findBoundaryHex (list<Hex>::const_iterator& hi) const
+{
+    if (hi->boundaryHex == true) {
+        // No need to change the Hex iterator
+        return true;
+    }
+
+    if (hi->has_ne) {
+        list<Hex>::const_iterator ci(hi->ne);
+        if (this->findBoundaryHex (ci) == true) {
+            hi = ci;
+            return true;
+        }
+    }
+    if (hi->has_nne) {
+        list<Hex>::const_iterator ci(hi->nne);
+        if (this->findBoundaryHex (ci) == true) {
+            hi = ci;
+            return true;
+        }
+    }
+    if (hi->has_nnw) {
+        list<Hex>::const_iterator ci(hi->nnw);
+        if (this->findBoundaryHex (ci) == true) {
+            hi = ci;
+            return true;
+        }
+    }
+    if (hi->has_nw) {
+        list<Hex>::const_iterator ci(hi->nw);
+        if (this->findBoundaryHex (ci) == true) {
+            hi = ci;
+            return true;
+        }
+    }
+    if (hi->has_nsw) {
+        list<Hex>::const_iterator ci(hi->nsw);
+        if (this->findBoundaryHex (ci) == true) {
+            hi = ci;
+            return true;
+        }
+    }
+    if (hi->has_nse) {
+        list<Hex>::const_iterator ci(hi->nse);
+        if (this->findBoundaryHex (ci) == true) {
+            hi = ci;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool
+morph::HexGrid::boundaryContiguous (void) const
+{
+    list<Hex>::const_iterator hi = this->hexen.begin();
+    if (this->findBoundaryHex (hi) == false) {
+        // Found no boundary hex
+        return false;
+    }
+    return this->boundaryContiguous (hi);
+}
+
+bool
+morph::HexGrid::boundaryContiguous (list<Hex>::const_iterator bhi) const
+{
+    bool rtn = true;
+
+    list<Hex>::const_iterator hi = bhi;
+    list<Hex>::const_iterator hi_next = bhi;
+    set<unsigned int> seen;
+
+    do {
+        hi = hi_next;
+        if (hi != bhi) {
+            DBG2 ("Inserting " << hi->vi << " into seen");
+            seen.insert (hi->vi);
+        }
+        DBG2 (hi->output());
+
+        if (hi->has_ne && hi->ne->boundaryHex == true && seen.find(hi->ne->vi) == seen.end()) {
+            hi_next = hi->ne;
+        }
+        if (hi->has_nne && hi->nne->boundaryHex == true && seen.find(hi->nne->vi) == seen.end()) {
+            hi_next = hi->nne;
+        }
+        if (hi->has_nnw && hi->nnw->boundaryHex == true && seen.find(hi->nnw->vi) == seen.end()) {
+            hi_next = hi->nnw;
+        }
+        if (hi->has_nw && hi->nw->boundaryHex == true && seen.find(hi->nw->vi) == seen.end()) {
+            hi_next = hi->nw;
+        }
+        if (hi->has_nsw && hi->nsw->boundaryHex == true && seen.find(hi->nsw->vi) == seen.end()) {
+            hi_next = hi->nsw;
+        }
+        if (hi->has_nse && hi->nse->boundaryHex == true && seen.find(hi->nse->vi) == seen.end()) {
+            hi_next = hi->nse;
+        }
+
+        DBG2 ("Current hex: " << hi->ri << "," << hi->gi
+              << ". Next boundary hex: " << hi_next->ri << "," << hi_next->gi);
+
+        // if not progressed here, return false.
+        if (hi_next == hi) {
+            DBG("hi_next == hi!");
+            rtn = false;
+            break;
+        }
+
+    } while (hi_next != bhi);
+
+    DBG ("Boundary " << (rtn ? "IS" : "isn't") << " contiguous");
+
+    return rtn;
 }
 
 void
