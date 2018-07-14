@@ -6,8 +6,8 @@ using namespace std;
 
 int main()
 {
-    HexGrid hg(1, 2);
-    cout << hg.output() << endl;
+    HexGrid hg(2.309401, 25000);
+    //cout << hg.output() << endl;
     cout << "Set up " << hg.num() << " hexes in a grid." << endl;
     return 0;
 }
