@@ -328,23 +328,37 @@ morph::HexGrid::discardOutside (void)
     }
     DBG("Number of hexes in this->hexen is now: " << this->hexen.size());
 
-    // Re-number the vector iterator in the hexes.
+    // The Hex::vi indices need to be re-numbered.
+    this->renumberVectorIndices();
+
+    // Finally, do something about the hexagonal grid vertices; set
+    // this to true to mark that the iterators to the outermost
+    // vertices are no longer valid and shouldn't be used.
+    this->gridReducedToBoundary = true;
+}
+
+void
+morph::HexGrid::renumberVectorIndices (void)
+{
     unsigned int vi = 0;
-    hi = this->hexen.begin();
+    auto hi = this->hexen.begin();
     while (hi != this->hexen.end()) {
         DBG2 ("Old vi: " << hi->vi << " new vi: " << vi);
         hi->vi = vi++;
         ++hi;
     }
-
-    // Finally, do something about the hexagonal grid vertices?
-    this->gridReducedToBoundary = true;
 }
 
 unsigned int
 morph::HexGrid::num (void) const
 {
     return this->hexen.size();
+}
+
+unsigned int
+morph::HexGrid::lastVectorIndex (void) const
+{
+    return this->hexen.rbegin()->vi;
 }
 
 string

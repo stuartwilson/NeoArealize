@@ -64,6 +64,13 @@ namespace morph {
         unsigned int num (void) const;
 
         /*!
+         * \brief Obtain the vector index of the last Hex in hexen.
+         *
+         * return Hex::vi from the last Hex in the grid.
+         */
+        unsigned int lastVectorIndex (void) const;
+
+        /*!
          * Output some text information about the hexgrid.
          */
         string output (void) const;
@@ -128,6 +135,13 @@ namespace morph {
          * #boundary.
          */
         void discardOutside (void);
+
+        /*!
+         * Does what it says on the tin. Re-number the Hex::vi vector
+         * index in each Hex in the HexGrid, from the start of the
+         * list<Hex> hexen until the end.
+         */
+        void renumberVectorIndices (void);
 
         /*!
          * The centre to centre hex distance between adjacent members
