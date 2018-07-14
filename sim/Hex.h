@@ -290,6 +290,10 @@ namespace morph {
         /*
          * A bitset to hold flags for whether neighbours are set, and
          * so on.
+         *
+         * It saves about 20% of the memory used for a HexGrid to use
+         * a bitset instead of using individual bools, but it's also
+         * about 20% slower, so I'll not pursue this branch.
          */
         //@{
         bitset<8> flags;
