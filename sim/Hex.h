@@ -11,6 +11,7 @@
 #include <list>
 #include <utility>
 #include <cmath>
+#include <bitset>
 #include "morph/BezCoord.h"
 
 using std::string;
@@ -19,6 +20,7 @@ using std::list;
 using std::abs;
 using std::sqrt;
 using std::pair;
+using std::bitset;
 
 #define DEBUG_WITH_COUT 1
 #ifdef DEBUG_WITH_COUT
@@ -84,25 +86,25 @@ namespace morph {
             s += to_string(this->ri).substr(0,4) + ",";
             s += to_string(this->gi).substr(0,4) + "). ";
 
-            if (this->has_ne) {
-                s += "E: (" + to_string(this->ne->ri).substr(0,4) + "," + to_string(this->ne->gi).substr(0,4) + ") " + (this->ne->boundaryHex == true ? "OB":"") + " ";
+            if (this->flags[has_ne]) {
+                s += "E: (" + to_string(this->ne->ri).substr(0,4) + "," + to_string(this->ne->gi).substr(0,4) + ") " + (this->ne->flags[boundaryHex] == true ? "OB":"") + " ";
             }
-            if (this->has_nse) {
-                s += "SE: (" + to_string(this->nse->ri).substr(0,4) + "," + to_string(this->nse->gi).substr(0,4) + ") " + (this->nse->boundaryHex == true ? "OB":"") + " ";
+            if (this->flags[has_nse]) {
+                s += "SE: (" + to_string(this->nse->ri).substr(0,4) + "," + to_string(this->nse->gi).substr(0,4) + ") " + (this->nse->flags[boundaryHex] == true ? "OB":"") + " ";
             }
-            if (this->has_nsw) {
-                s += "SW: (" + to_string(this->nsw->ri).substr(0,4) + "," + to_string(this->nsw->gi).substr(0,4) + ") " + (this->nsw->boundaryHex == true ? "OB":"") + " ";
+            if (this->flags[has_nsw]) {
+                s += "SW: (" + to_string(this->nsw->ri).substr(0,4) + "," + to_string(this->nsw->gi).substr(0,4) + ") " + (this->nsw->flags[boundaryHex] == true ? "OB":"") + " ";
             }
-            if (this->has_nw) {
-                s += "W: (" + to_string(this->nw->ri).substr(0,4) + "," + to_string(this->nw->gi).substr(0,4) + ") " + (this->nw->boundaryHex == true ? "OB":"") + " ";
+            if (this->flags[has_nw]) {
+                s += "W: (" + to_string(this->nw->ri).substr(0,4) + "," + to_string(this->nw->gi).substr(0,4) + ") " + (this->nw->flags[boundaryHex] == true ? "OB":"") + " ";
             }
-            if (this->has_nnw) {
-                s += "NW: (" + to_string(this->nnw->ri).substr(0,4) + "," + to_string(this->nnw->gi).substr(0,4) + ") " + (this->nnw->boundaryHex == true ? "OB":"") + " ";
+            if (this->flags[has_nnw]) {
+                s += "NW: (" + to_string(this->nnw->ri).substr(0,4) + "," + to_string(this->nnw->gi).substr(0,4) + ") " + (this->nnw->flags[boundaryHex] == true ? "OB":"") + " ";
             }
-            if (this->has_nne) {
-                s += "NE: (" + to_string(this->nne->ri).substr(0,4) + "," + to_string(this->nne->gi).substr(0,4) + ") " + (this->nne->boundaryHex == true ? "OB":"") + " ";
+            if (this->flags[has_nne]) {
+                s += "NE: (" + to_string(this->nne->ri).substr(0,4) + "," + to_string(this->nne->gi).substr(0,4) + ") " + (this->nne->flags[boundaryHex] == true ? "OB":"") + " ";
             }
-            if (this->boundaryHex) {
+            if (this->flags[boundaryHex]) {
                 s += "(ON boundary)";
             } else  {
                 s += "(not boundary)";
@@ -214,19 +216,7 @@ namespace morph {
         int bi = 0;
         //@}
 
-        /*!
-         * Set to true if this Hex has been marked as being on a
-         * boundary. It is expected that client code will then re-set
-         * the neighbour relations so that onBoundary() would return
-         * true.
-         */
-        bool boundaryHex = false;
-
-        /*!
-         * Set true if this Hex is known to be inside the boundary.
-         */
-        bool insideBoundary = false;
-
+#ifdef REQUIRED
         /*!
          * Return true if this is a boundary hex - one on the outside
          * edge of a hex grid.
@@ -242,34 +232,34 @@ namespace morph {
             }
             return false;
         }
-
+#endif
         /*!
          * Setters for neighbour iterators
          */
         //@{
         void set_ne (list<Hex>::iterator it) {
             this->ne = it;
-            this->has_ne = true;
+            this->flags.set (has_ne);
         }
         void set_nne (list<Hex>::iterator it) {
             this->nne = it;
-            this->has_nne = true;
+            this->flags.set (has_nne);
         }
         void set_nnw (list<Hex>::iterator it) {
             this->nnw = it;
-            this->has_nnw = true;
+            this->flags.set (has_nnw);
         }
         void set_nw (list<Hex>::iterator it) {
             this->nw = it;
-            this->has_nw = true;
+            this->flags.set (has_nw);
         }
         void set_nsw (list<Hex>::iterator it) {
             this->nsw = it;
-            this->has_nsw = true;
+            this->flags.set (has_nsw);
         }
         void set_nse (list<Hex>::iterator it) {
             this->nse = it;
-            this->has_nse = true;
+            this->flags.set (has_nse);
         }
         //@}
 
@@ -278,23 +268,52 @@ namespace morph {
          */
         //@{
         void unset_ne (void) {
-            this->has_ne = false;
+            this->flags.reset (has_ne);
         }
         void unset_nne (void) {
-            this->has_nne = false;
+            this->flags.reset (has_nne);
         }
         void unset_nnw (void) {
-            this->has_nnw = false;
+            this->flags.reset (has_nnw);
         }
         void unset_nw (void) {
-            this->has_nw = false;
+            this->flags.reset (has_nw);
         }
         void unset_nsw (void) {
-            this->has_nsw = false;
+            this->flags.reset (has_nsw);
         }
         void unset_nse (void) {
-            this->has_nse = false;
+            this->flags.reset (has_nse);
         }
+        //@}
+
+        /*
+         * A bitset to hold flags for whether neighbours are set, and
+         * so on.
+         */
+        //@{
+        bitset<8> flags;
+        enum flagnames {
+            has_ne, /* Set true when ne has been set. Use of iterators
+                     * rather than pointers means we can't do any kind
+                     * of check to see if the iterator is valid, so we
+                     * have to keep a separate boolean value. */
+            has_nne, /* Set true when nne has been set.*/
+            has_nnw, /* Set true when nnw has been set.*/
+            has_nw,  /* Set true when nw has been set.*/
+            has_nsw, /* Set true when nsw has been set.*/
+            has_nse, /* Set true when nse has been set.*/
+
+            boundaryHex, /* Set to true if this Hex has been marked as
+                          * being on a boundary. It is expected that
+                          * client code will then re-set the neighbour
+                          * relations so that onBoundary() would
+                          * return true. */
+
+            insideBoundary, /* Set true if this Hex is known to be
+                             * inside the boundary */
+            num_flags
+        };
         //@}
 
         //private:??
@@ -306,59 +325,35 @@ namespace morph {
          * Nearest neighbour to the East; in the plus r direction.
          */
         list<Hex>::iterator ne;
-        /*!
-         * Set true when ne has been set. Use of iterators rather than
-         * pointers means we can't do any kind of check to see if the
-         * iterator is valid, so we have to keep a separate boolean
-         * value.
-         *
-         * FIXME: Use std::bitset for these boolean switches?
-         */
-        bool has_ne = false;
 
         /*!
          * Nearest neighbour to the NorthEast; in the plus g
          * direction.
          */
-        //@{
         list<Hex>::iterator nne;
-        bool has_nne = false;
-        //@}
 
         /*!
          * Nearest neighbour to the NorthWest; in the plus b
          * direction.
          */
-        //@{
         list<Hex>::iterator nnw;
-        bool has_nnw = false;
-        //@}
 
         /*!
          * Nearest neighbour to the West; in the minus r direction.
          */
-        //@{
         list<Hex>::iterator nw;
-        bool has_nw = false;
-        //@}
 
         /*!
          * Nearest neighbour to the SouthWest; in the minus g
          * direction.
          */
-        //@{
         list<Hex>::iterator nsw;
-        bool has_nsw = false;
-        //@}
 
         /*!
          * Nearest neighbour to the SouthEast; in the minus b
          * direction.
          */
-        //@{
         list<Hex>::iterator nse;
-        bool has_nse = false;
-        //@}
 
         //@}
     };
