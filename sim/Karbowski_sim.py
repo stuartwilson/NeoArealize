@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pylab as pl
 
-steps = 500000
+steps = 100000
 fname = 'data/tmp2.bin'
 if(1):
     os.system('rm '+fname)
