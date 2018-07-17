@@ -1,3 +1,7 @@
+#
+# Testing process2.cpp
+#
+
 import sys
 import time
 import processes as P
@@ -5,8 +9,8 @@ from math import *
 import numpy as np
 
 basePort = 8000
-worlds = [P.pTemp('build/sim/process','world00','logs/log00',1,basePort+0),
-          P.pTemp('build/sim/process','world01','logs/log01',2,basePort+1)]
+worlds = [P.pTemp('build/sim/process2','world00','logs/log00',1,basePort+0),
+          P.pTemp('build/sim/process2','world01','logs/log01',2,basePort+1)]
 
 # These are the diffusion constants
 #Dn = np.array([100.,5.])

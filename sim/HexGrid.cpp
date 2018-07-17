@@ -35,6 +35,13 @@ using morph::BezCurvePath;
 using morph::BezCoord;
 using morph::Hex;
 
+morph::HexGrid::HexGrid ()
+    : d(1.0f)
+    , x_span(1.0f)
+    , z(0.0f)
+{
+}
+
 morph::HexGrid::HexGrid (float d_, float x_span_, float z_)
 {
     this->d = d_;
@@ -397,6 +404,15 @@ morph::HexGrid::extent (void) const
         ss << "Initial grid vertices are no longer valid.";
     }
     return ss.str();
+}
+
+void
+morph::HexGrid::init (float d_, float x_span_, float z_)
+{
+    this->d = d_;
+    this->x_span = x_span_;
+    this->z = z_;
+    this->init();
 }
 
 void

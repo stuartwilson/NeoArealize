@@ -317,8 +317,8 @@ int main (int argc, char **argv)
     ReactDiff M(7, 0, 0.0, 5);
     for (int I=0; I<M.nFields; I++) {
         for (int i=0; i<M.nHexes; i++) {
-            M.NN[I][i] = (morph::Tools::randFloat()) * 0.1;
-            M.CC[I][i] = (morph::Tools::randFloat()) * 0.1;
+            M.NN[I][i] = (morph::Tools::randDouble()) * 0.1;
+            M.CC[I][i] = (morph::Tools::randDouble()) * 0.1;
         }
     }
 

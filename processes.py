@@ -3,12 +3,12 @@ import os, socket, time
 BUFFERSIZE = 512
 
 class pTemp:
-    def __init__(self,location, name, logFile, seed, basePort):
+    def __init__(self,modelbinarypath, name, logFile, seed, basePort):
         os.system('touch '+logFile+'.txt')
         portID = basePort
         while (portID<basePort+20*10):
             try:
-                cmd = 'xterm -e "./'+location+'/process '+name+' '+logFile+'.txt '+str(seed)+' '+str(portID)+'" &'
+                cmd = 'xterm -e "./'+modelbinarypath+' '+name+' '+logFile+'.txt '+str(seed)+' '+str(portID)+'" &'
                 os.system(cmd)
                 self.s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
                 self.s.bind(('127.0.0.1', portID))

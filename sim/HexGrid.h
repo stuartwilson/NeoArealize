@@ -41,6 +41,11 @@ namespace morph {
     {
     public:
         /*!
+         * Default constructor
+         */
+        HexGrid();
+
+        /*!
          * Construct the hexagonal hex grid with a hex to hex distance
          * of @a d_ (centre to centre) and approximate diameter of @a
          * x_span_. Set z to @a z_ which may be useful as an
@@ -48,6 +53,15 @@ namespace morph {
          * code, but it not otherwise made use of.
          */
         HexGrid (float d_, float x_span_, float z_ = 0.0f);
+
+        /*!
+         * Initialise with the passed-in parameters; a hex to hex
+         * distance of @a d_ (centre to centre) and approximate
+         * diameter of @a x_span_. Set z to @a z_ which may be useful
+         * as an identifier if several HexGrids are being managed by
+         * client code, but it not otherwise made use of.
+         */
+        void init (float d_, float x_span_, float z_ = 0.0f);
 
         /*!
          * Sets boundry to @a p, then runs the code to discard hexes
