@@ -285,29 +285,33 @@ public:
 
         // Step through vectors or iterate through list? The latter should be just fine here.
         for (auto h : this->hg->hexen) {
-            array<float,3> cl = morph::Tools::getJetColorF (/*P[i]*/ 0.1);
-            array<float,3> cl2 = morph::Tools::getJetColorF (/*P[i]*/ 0.3);
-            array<float,3> cl3 = morph::Tools::getJetColorF (/*P[i]*/ 0.8);
-            array<float,3> cl4 = morph::Tools::getJetColorF (/*P[i]*/ 0.85);
-            array<float,3> cl5 = morph::Tools::getJetColorF (/*P[i]*/ 0.95);
+            array<float,3> cl = morph::Tools::getJetColorF (/*P[i]*/ 0.2);
+            array<float,3> cl2 = morph::Tools::getJetColorF (/*P[i]*/ 0.8);
+            //array<float,3> cl3 = morph::Tools::getJetColorF (/*P[i]*/ 0.8);
+            //array<float,3> cl4 = morph::Tools::getJetColorF (/*P[i]*/ 0.85);
+            //array<float,3> cl5 = morph::Tools::getJetColorF (/*P[i]*/ 0.95);
+#ifdef TRIFILLS
             if (h.has_ne && h.has_nse) {
                 if (h.boundaryHex == true) {
-                    if (h.x == 0.0f && h.y == 0.0f) {
-                        disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl3);
-                    } else if (h.ne->x == 0.0f && h.ne->y == 0.0f) {
-                        disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl4);
-                    } else if (h.nse->x == 0.0f && h.nse->y == 0.0f) {
-                        disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl5);
-                    } else {
-                        disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl2);
-                    }
-                } else {
                     disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl);
+                } else {
+                    disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl2);
                 }
             }
             if (h.has_nw && h.has_nnw) {
-                disp.drawTriFill (h.position(), h.nw->position(), h.nnw->position(), cl3);
+                if (h.boundaryHex == true) {
+                    disp.drawTriFill (h.position(), h.nw->position(), h.nnw->position(), cl);
+                } else {
+                    disp.drawTriFill (h.position(), h.nw->position(), h.nnw->position(), cl2);
+                }
             }
+#else
+            if (h.boundaryHex == true) {
+                disp.drawHex (h.position(), (h.d/2.0f), cl);
+            } else {
+                disp.drawHex (h.position(), (h.d/2.0f), cl2);
+            }
+#endif
         }
         disp.redrawDisplay();
 
