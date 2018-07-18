@@ -10,6 +10,7 @@
 #include <vector>
 #include <array>
 #include <iomanip>
+#include <cmath>
 
 using namespace std;
 
@@ -144,6 +145,7 @@ public:
     ~RD_2D_Karb (void) {
         delete (this->hg);
     }
+
     /*!
      * A utility function to resize the vector-vectors that hold a
      * variable for the N different thalamo-cortical axon types.
@@ -169,9 +171,25 @@ public:
         p.resize (this->N, 0.0);
     }
 
+    /*!
+     * Resize a gradient field
+     */
     void resize_gradient_field (array<vector<double>, 2>& g) {
         g[0].resize (this->nhex, 0.0);
         g[1].resize (this->nhex, 0.0);
+    }
+
+    /*!
+     * Initialise this vector of vectors with noise. This is a
+     * model-specific function.
+     */
+    void noiseify_vector_vector (vector<vector<double> >& vv) {
+        for (unsigned int i = 0; i<this->N; ++i) {
+            for (unsigned int h = 0; h < this->nhex; ++h) {
+                // Note the model-specific choice of multiplier and offset here:
+                vv[i][h] = morph::Tools::randDouble() * 0.1 + 0.8;
+            }
+        }
     }
 
     /*!
@@ -218,6 +236,15 @@ public:
         for (unsigned int i = 0; i<this->N; ++i) {
             this->resize_gradient_field (this->grad_a[i]);
         }
+
+        // Initialise a with noise
+        this->noiseify_vector_vector (this->a);
+
+        // Put some hand-crafted 2D Gaussians in rhoA, rhoB and rhoC.
+        //    createGaussian ( x      y    gain  sigma    result)
+        this->createGaussian (0.2f, 0.05f, 1.0f, 0.2f, this->rhoA);
+        this->createGaussian (-0.2f, 0.05f, 1.0f, 0.3f, this->rhoB);
+        this->createGaussian (0.0f, -0.05f, 0.8f, 0.25f, this->rhoC);
     }
 
 #if 0
@@ -232,90 +259,50 @@ public:
 #endif
 
     void step (void) {
-
-        // Do some work.
-
-#ifdef EXAMPLE_STUFF
-        // Enforce no-flux boundary conditions
-        vector<double> CCp = CC[I];
-        vector<double> NNp = NN[I];
-        for (int i=0; i<nHexes; i++) {
-            if (C[i]<6) { // then on boundary
-                double nfC = 0.0, nfN = 0.0;
-                for (int j=0; j<6; j++) {
-                    if (N[i][j] != i) {
-                        nfC += CCp[N[i][j]];
-                        nfN += NNp[N[i][j]];
-                    }
-                }
-                // Sets value of
-                CC[I][i] = nfC / (double)C[i]; // value in C[i] used here for normalization
-                NN[I][i] = nfN / (double)C[i];
-            }
-        }
-#endif
+        // Do some work. The order of proceedings is:
+        // 1. Compute Karb2004 Eq 3.
+        // 2. Do integration of a (RK in the 1D model). Involves computing axon branching flux.
+        // 3. Do integration of c
     }
 
     /*!
      * Plot the system on @a disp
      */
-    string plot (morph::Gdisplay& disp) {
-        string rtnMsg("");
-#if 0
+    void plot (morph::Gdisplay& disp) {
+
         // Copies data to plot out of the model
-        vector<double> plt = M.NN[0];
+        vector<double> plt = this->a[0];
         double maxV = -1e7;
         double minV = +1e7;
         // Determines min and max
-        for (int i=0; i<M.nHexes; i++) {
-            if (M.C[i] == 6) {
-                if (plt[i]>maxV) { maxV = plt[i]; }
-                if (plt[i]<minV) { minV = plt[i]; }
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == false) {
+                if (plt[h.vi]>maxV) { maxV = plt[h.vi]; }
+                if (plt[h.vi]<minV) { minV = plt[h.vi]; }
             }
         }
         double scaleV = 1.0 / (maxV-minV);
 
         // Determine a colour from min, max and current value
-        vector<double> P(M.nhex, 0.0);
-        for (int i=0; i<M.nhex; i++) {
-            P[i] = fmin (fmax (((plt[i]) - minV) * scaleV, 0.0), 1.0);
-            // M.X[i][2] = P[i];
+        vector<double> P(this->nhex, 0.0);
+        for (unsigned int h=0; h<this->nhex; h++) {
+            P[h] = fmin (fmax (((plt[h]) - minV) * scaleV, 0.0), 1.0);
         }
-#endif
 
         // Step through vectors or iterate through list? The latter should be just fine here.
         for (auto h : this->hg->hexen) {
-            array<float,3> cl = morph::Tools::getJetColorF (/*P[i]*/ 0.2);
-            array<float,3> cl2 = morph::Tools::getJetColorF (/*P[i]*/ 0.8);
-            //array<float,3> cl3 = morph::Tools::getJetColorF (/*P[i]*/ 0.8);
-            //array<float,3> cl4 = morph::Tools::getJetColorF (/*P[i]*/ 0.85);
-            //array<float,3> cl5 = morph::Tools::getJetColorF (/*P[i]*/ 0.95);
-#ifdef TRIFILLS
-            if (h.has_ne && h.has_nse) {
-                if (h.boundaryHex == true) {
-                    disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl);
-                } else {
-                    disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl2);
-                }
-            }
-            if (h.has_nw && h.has_nnw) {
-                if (h.boundaryHex == true) {
-                    disp.drawTriFill (h.position(), h.nw->position(), h.nnw->position(), cl);
-                } else {
-                    disp.drawTriFill (h.position(), h.nw->position(), h.nnw->position(), cl2);
-                }
-            }
-#else
-            if (h.boundaryHex == true) {
+            array<float,3> cl = morph::Tools::getJetColorF (P[h.vi]);
+            // Reduce the boundary artificially, so it shows up.
+            array<float,3> cl_bound = morph::Tools::getJetColorF (P[h.vi] * 0.8);
+            if (h.boundaryHex == false) {
                 disp.drawHex (h.position(), (h.d/2.0f), cl);
             } else {
-                disp.drawHex (h.position(), (h.d/2.0f), cl2);
+                disp.drawHex (h.position(), (h.d/2.0f), cl_bound);
             }
-#endif
         }
         disp.redrawDisplay();
 
-        return rtnMsg;
+        return;
     }
 
     //! Spatial integration
@@ -345,12 +332,12 @@ public:
         return dci_dt;
     }
 
+#if 0
     /*!
      * Computes the "flux of axonal branches" term, and adds "addon",
      * which is alpha * ci - betaterm. Computes dJdX, then multiplies by
      * 2.dx as the sum is carried out over two distance increments.
      */
-#if 0
     vector<double> compute_axonalbranchflux (vector<double> ai,
                                              vector<double> gi,
                                              vector<double> addon) {
@@ -388,6 +375,47 @@ public:
         return output;
     }
 #endif
+
+    /*!
+     * Create a symmetric, 2D Gaussian hill centred at coordinate (x,y) with
+     * width sigma and height gain. Place result into @a result.
+     */
+    void createGaussian (float x, float y, double gain, double sigma, vector<double>& result) {
+
+        // Once-only parts of the calculation of the Gaussian.
+        double root_2_pi = 2.506628275;
+        double one_over_sigma_root_2_pi = 1 / sigma * root_2_pi;
+        double two_sigma_sq = 2 * sigma * sigma;
+
+        // Gaussian dist. result, and a running sum of the results:
+        double gauss = 0.0;
+        double sum = 0.0;
+
+        // x and y components of the vector from (x,y) to any given Hex.
+        float rx = 0.0f, ry = 0.0f;
+        // distance from any Hex to (x,y)
+        float r = 0.0f;
+
+        // Calculate each element of the kernel:
+        for (auto h : this->hg->hexen) {
+            rx = x - h.x;
+            ry = y - h.y;
+            r = sqrt (rx*rx + ry*ry);
+            gauss = gain * (one_over_sigma_root_2_pi
+                            * exp ( static_cast<double>(-(r*r))
+                                    / two_sigma_sq ));
+            result[h.vi] = gauss;
+            sum += gauss;
+            ++k;
+        }
+
+        // Normalise the kernel to 1 by dividing by the sum:
+        unsigned int j = this->nhex;
+        while (j > 0) {
+            --j;
+            result[j] = result[j] / sum;
+        }
+    }
 
 }; // RD_2D_Karb
 
@@ -460,7 +488,7 @@ int main (int argc, char **argv)
         out << TIME << ",";
 
         // Check for a command from the model world
-        vector <string> command;
+        vector<string> command;
         string messageI = W.master.exchange (out.str().c_str());
         stringstream ss(messageI);
         while (ss.good()) {
@@ -522,7 +550,7 @@ int main (int argc, char **argv)
             W.logfile << W.processName << "@" << TIMEcs << ": 2=PLOT" << endl;
             displays[0].resetDisplay (fix, eye, rot);
             try {
-                W.logfile << M.plot (displays[0]); // would be the ideal API
+                M.plot (displays[0]);
             } catch (const exception& e) {
                 W.logfile << "Caught exception calling M.plot(): " << e.what() << endl;
             }
