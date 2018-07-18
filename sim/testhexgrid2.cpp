@@ -11,11 +11,10 @@ int main()
     try {
         ReadCurves r("../trial.svg");
 
-        HexGrid hg(0.1, 2);
+        HexGrid hg(0.02, 7);
         hg.setBoundary (r.getCorticalPath());
 
         cout << hg.extent() << endl;
-        //cout << hg.output() << endl;
 
         cout << "Number of hexes in grid:" << hg.num() << endl;
         cout << "Last vector index:" << hg.lastVectorIndex() << endl;

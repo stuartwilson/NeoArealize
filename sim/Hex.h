@@ -9,6 +9,7 @@
 
 #include <string>
 #include <list>
+#include <array>
 #include <utility>
 #include <cmath>
 #include "morph/BezCoord.h"
@@ -16,6 +17,7 @@
 using std::string;
 using std::to_string;
 using std::list;
+using std::array;
 using std::abs;
 using std::sqrt;
 using std::pair;
@@ -169,6 +171,14 @@ namespace morph {
         //@}
 
         /*!
+         * Get the Cartesian position of this Hex as a fixed size array.
+         */
+        array<float, 3> position (void) {
+            array<float,3> rtn = { { this->x, this->y, this->z } };
+            return rtn;
+        }
+
+        /*!
          * The centre-to-centre distance from one Hex to an
          * immediately adjacent Hex.
          */
@@ -297,6 +307,42 @@ namespace morph {
         }
         //@}
 
+        /*!
+         * Un-set the pointers on all my neighbours so that THEY no longer point to ME.
+         */
+        void disconnectNeighbours (void) {
+            if (this->has_ne) {
+                if (this->ne->has_nw) {
+                    this->ne->unset_nw();
+                }
+            }
+            if (this->has_nne) {
+                if (this->nne->has_nsw) {
+                    this->nne->unset_nsw();
+                }
+            }
+            if (this->has_nnw) {
+                if (this->nnw->has_nse) {
+                    this->nnw->unset_nse();
+                }
+            }
+            if (this->has_nw) {
+                if (this->nw->has_ne) {
+                    this->nw->unset_ne();
+                }
+            }
+            if (this->has_nsw) {
+                if (this->nsw->has_nne) {
+                    this->nsw->unset_nne();
+                }
+            }
+            if (this->has_nse) {
+                if (this->nse->has_nnw) {
+                    this->nse->unset_nnw();
+                }
+            }
+        }
+
         //private:??
         /*!
          * Nearest neighbours
@@ -311,8 +357,6 @@ namespace morph {
          * pointers means we can't do any kind of check to see if the
          * iterator is valid, so we have to keep a separate boolean
          * value.
-         *
-         * FIXME: Use std::bitset for these boolean switches?
          */
         bool has_ne = false;
 

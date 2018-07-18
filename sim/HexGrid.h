@@ -96,6 +96,11 @@ namespace morph {
         string extent (void) const;
 
         /*!
+         * Getter for d.
+         */
+        float getd (void) const;
+
+        /*!
          * The list of hexes that make up this HexGrid.
          */
         list<Hex> hexen;

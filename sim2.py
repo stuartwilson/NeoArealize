@@ -9,21 +9,23 @@ from math import *
 import numpy as np
 
 basePort = 8000
-worlds = [P.pTemp('build/sim/process2','world00','logs/log00',1,basePort+0),
-          P.pTemp('build/sim/process2','world01','logs/log01',2,basePort+1)]
+#worlds = [P.pTemp('build/sim/process2','world00','logs/log00',1,basePort+0),
+#          P.pTemp('build/sim/process2','world01','logs/log01',2,basePort+1)]
+worlds = [P.pTemp('build/sim/process2','world00','logs/log00',1,basePort+0)]
 
 # These are the diffusion constants
-#Dn = np.array([100.,5.])
-#Dc = np.array([100.*0.3,5.*0.3])
 Dn = np.array([200.,10.])
 Dc = Dn*0.3
 
 # Set simulation params
-nField = 5
 for i,w in enumerate(worlds):
-    for j in range(nField):
-        w.stream('4,0,'+str(j)+','+str((1.*(j+1.)/nField)*Dn[i]))
-        w.stream('4,1,'+str(j)+','+str((1.*(j+1.)/nField)*Dc[i]))
+
+    # Send 2 commands to each world:
+    strn = '4,0,'+str(0)+','+str((1.*(0+1.))*Dn[i])
+    print (strn)
+    w.stream(strn)
+    strn = '4,1,'+str(0)+','+str((1.*(0+1.))*Dc[i])
+    w.stream(strn)
 
 ''' # Uncomment to load
 for i,w in enumerate(worlds):
@@ -38,7 +40,7 @@ for t in range(100000):
 
     for i,w in enumerate(worlds):
         if(t%1==0):
-            w.stream('8,') # display image
+            w.stream('2,') # display image
             # w.stream('3,') #Save image to file
 
 ''' # Uncomment to save

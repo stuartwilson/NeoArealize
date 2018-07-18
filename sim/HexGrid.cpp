@@ -234,30 +234,48 @@ morph::HexGrid::boundaryContiguous (list<Hex>::const_iterator bhi) const
         DBG2 (hi->output());
 
         if (hi->has_ne && hi->ne->boundaryHex == true && seen.find(hi->ne->vi) == seen.end()) {
+            DBG2 ("hi_next is neighbour EAST");
             hi_next = hi->ne;
-        }
-        if (hi->has_nne && hi->nne->boundaryHex == true && seen.find(hi->nne->vi) == seen.end()) {
-            hi_next = hi->nne;
-        }
-        if (hi->has_nnw && hi->nnw->boundaryHex == true && seen.find(hi->nnw->vi) == seen.end()) {
-            hi_next = hi->nnw;
-        }
-        if (hi->has_nw && hi->nw->boundaryHex == true && seen.find(hi->nw->vi) == seen.end()) {
-            hi_next = hi->nw;
-        }
-        if (hi->has_nsw && hi->nsw->boundaryHex == true && seen.find(hi->nsw->vi) == seen.end()) {
-            hi_next = hi->nsw;
-        }
-        if (hi->has_nse && hi->nse->boundaryHex == true && seen.find(hi->nse->vi) == seen.end()) {
-            hi_next = hi->nse;
+        } else {
+            if (hi->has_nne && hi->nne->boundaryHex == true && seen.find(hi->nne->vi) == seen.end()) {
+                DBG2 ("hi_next is neighbour NORTHEAST");
+                hi_next = hi->nne;
+            } else {
+                if (hi->has_nnw && hi->nnw->boundaryHex == true && seen.find(hi->nnw->vi) == seen.end()) {
+                    DBG2 ("hi_next is neighbour NORTHWEST");
+                    hi_next = hi->nnw;
+                } else {
+                    if (hi->has_nw && hi->nw->boundaryHex == true && seen.find(hi->nw->vi) == seen.end()) {
+                        DBG2 ("hi_next is neighbour WEST");
+                        hi_next = hi->nw;
+                    } else {
+                        if (hi->has_nsw && hi->nsw->boundaryHex == true && seen.find(hi->nsw->vi) == seen.end()) {
+                            DBG2 ("hi_next is neighbour SOUTHWEST");
+                            hi_next = hi->nsw;
+                        } else {
+                            if (hi->has_nse && hi->nse->boundaryHex == true && seen.find(hi->nse->vi) == seen.end()) {
+                                DBG2 ("hi_next is neighbour SOUTHEAST");
+                                hi_next = hi->nse;
+                            } else {
+                                // No neighbours left.
+                                DBG2 ("No neighbours left");
+                                if (hi == bhi) {
+                                    DBG2 ("Back at start, nowhere left to go!");
+                                    rtn = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        DBG2 ("Current hex: " << hi->ri << "," << hi->gi
+        DBG2  ("Current hex: " << hi->ri << "," << hi->gi
               << ". Next boundary hex: " << hi_next->ri << "," << hi_next->gi);
 
         // if not progressed here, return false.
         if (hi_next == hi) {
-            DBG("hi_next == hi!");
+            DBG ("hi_next == hi!");
             rtn = false;
             break;
         }
@@ -328,6 +346,10 @@ morph::HexGrid::discardOutside (void)
     auto hi = this->hexen.begin();
     while (hi != this->hexen.end()) {
         if (hi->insideBoundary == false) {
+            // Here's the problem I think. When erasing a Hex, I need
+            // to update the neighbours of its neighbours.
+            hi->disconnectNeighbours();
+            // Having disconnected the neighbours, erase the Hex.
             hi = this->hexen.erase (hi);
         } else {
             ++hi;
@@ -406,6 +428,12 @@ morph::HexGrid::extent (void) const
     return ss.str();
 }
 
+float
+morph::HexGrid::getd (void) const
+{
+    return this->d;
+}
+
 void
 morph::HexGrid::init (float d_, float x_span_, float z_)
 {
@@ -420,7 +448,10 @@ morph::HexGrid::init (void)
 {
     // Use span_x to determine how many rings out to traverse.
     float halfX = this->x_span/2.0f;
+    DBG ("halfX:" << halfX);
+    DBG ("d:" << d);
     unsigned int maxRing = abs(ceil(halfX/this->d));
+    DBG ("ceil(halfX/d):" << ceil(halfX/d));
 
     DBG ("Creating hexagonal hex grid with maxRing: " << maxRing);
 

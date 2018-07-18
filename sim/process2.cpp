@@ -5,8 +5,10 @@
 #include "morph/ReadCurves.h"
 #include "HexGrid.h"
 #include <iostream>
+//#include <ofstream>
 #include <fstream>
 #include <vector>
+#include <array>
 #include <iomanip>
 
 using namespace std;
@@ -32,17 +34,25 @@ public:
     unsigned int N = 5;
 
     /*!
-     * These are the c_i(x,t) variables from the Karb2004 paper.
+     * These are the c_i(x,t) variables from the Karb2004 paper. x is
+     * a vector in two-space.
      */
     vector<vector<double> > c;
 
     /*!
-     * These are the a_i(x,t) variables from the Karb2004 paper. The
-     * first vector is over the different TC axon types, enumerated by
-     * i, the second vector are the a_i values, indexed by the vi in
-     * the Hexes in HexGrid.
+     * These are the a_i(x,t) variables from the Karb2004 paper. x is
+     * a vector in two-space. The first vector is over the different
+     * TC axon types, enumerated by i, the second vector are the a_i
+     * values, indexed by the vi in the Hexes in HexGrid.
      */
     vector<vector<double> > a;
+
+    /*!
+     * For each TC axon type, this holds the two components of the
+     * gradient field of the scalar value a(x,t) (where this x is a
+     * vector in two-space)
+     */
+    vector<array<vector<double>, 2> > grad_a;
 
     /*!
      * n(x,t) variable from the Karb2004 paper.
@@ -64,7 +74,12 @@ public:
      * The power to which a_i(x,t) is raised in Eqs 1 and 2 in the
      * paper.
      */
-    double k = 3;
+    double k = 3.0;
+
+    /*!
+     * The diffusion parameter.
+     */
+    array<double,2> D = { { 1.0, 1.0 } };
 
     /*!
      * alpha_i parameters
@@ -96,9 +111,28 @@ public:
     vector<double> rhoC;
 
     /*!
+     * Into grad_rhoA/B/C put the two components of the gradient of
+     * rhoA/B/C computed across the HexGrid surface.
+     */
+    array<vector<double>, 2> grad_rhoA;
+    array<vector<double>, 2> grad_rhoB;
+    array<vector<double>, 2> grad_rhoC;
+
+    /*!
      * The HexGrid "background" for the Reaction Diffusion system.
      */
-    HexGrid hg;
+    HexGrid* hg;
+
+    /*!
+     * Hex to hex distance. Populate this from hg.d after hg has been
+     * initialised.
+     */
+    double dx = 1.0;
+
+    /*!
+     * Memory to hold an intermediate result
+     */
+    vector<vector<double> > betaterm;
 
     /*!
      * Default constructor.
@@ -107,6 +141,9 @@ public:
         this->init();
     }
 
+    ~RD_2D_Karb (void) {
+        delete (this->hg);
+    }
     /*!
      * A utility function to resize the vector-vectors that hold a
      * variable for the N different thalamo-cortical axon types.
@@ -132,6 +169,11 @@ public:
         p.resize (this->N, 0.0);
     }
 
+    void resize_gradient_field (array<vector<double>, 2>& g) {
+        g[0].resize (this->nhex, 0.0);
+        g[1].resize (this->nhex, 0.0);
+    }
+
     /*!
      * Initialise HexGrid, variables and parameters.
      */
@@ -139,18 +181,22 @@ public:
 
         cout << "init() called" << endl;
 
-        // Read curves:
-        ReadCurves r("../trial.svg");
-        // Create a HexGrid:
-        this->hg.init (0.01, 3);
-        this->hg.setBoundary (r.getCorticalPath());
+        // Create a HexGrid
+        this->hg = new HexGrid (0.01, 3);
+        // Read the curves which make a boundary
+        ReadCurves r("./trial.svg");
+        // Set the boundary in the HexGrid
+        this->hg->setBoundary (r.getCorticalPath());
         // Vector size comes from number of Hexes in the HexGrid
-        this->nhex = hg.num();
+        this->nhex = this->hg->num();
+        // Spatial dx comes from the HexGrid, too.
+        this->dx = this->hg->getd();
 
-        // Here link the grid to the vectors/resize the vectors
+        // Resize and zero-initialise the various containers
         this->resize_vector_vector (this->c);
         this->resize_vector_vector (this->a);
         this->resize_vector_vector (this->J);
+        this->resize_vector_vector (this->betaterm);
 
         this->resize_vector_variable (this->n);
         this->resize_vector_variable (this->rhoA);
@@ -162,6 +208,16 @@ public:
         this->resize_vector_param (this->gammaA);
         this->resize_vector_param (this->gammaB);
         this->resize_vector_param (this->gammaC);
+
+        this->resize_gradient_field (this->grad_rhoA);
+        this->resize_gradient_field (this->grad_rhoB);
+        this->resize_gradient_field (this->grad_rhoC);
+
+        // Resize grad_a
+        this->grad_a.resize (this->N);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            this->resize_gradient_field (this->grad_a[i]);
+        }
     }
 
 #if 0
@@ -203,11 +259,14 @@ public:
     /*!
      * Plot the system on @a disp
      */
-    void plot (morph::Gdisplay& disp) {
+    string plot (morph::Gdisplay& disp) {
+        string rtnMsg("");
 #if 0
+        // Copies data to plot out of the model
         vector<double> plt = M.NN[0];
         double maxV = -1e7;
         double minV = +1e7;
+        // Determines min and max
         for (int i=0; i<M.nHexes; i++) {
             if (M.C[i] == 6) {
                 if (plt[i]>maxV) { maxV = plt[i]; }
@@ -216,23 +275,46 @@ public:
         }
         double scaleV = 1.0 / (maxV-minV);
 
-        // Determine a colour
+        // Determine a colour from min, max and current value
         vector<double> P(M.nhex, 0.0);
         for (int i=0; i<M.nhex; i++) {
             P[i] = fmin (fmax (((plt[i]) - minV) * scaleV, 0.0), 1.0);
             // M.X[i][2] = P[i];
         }
-
-        for (int i=0; i<M.nHexes; i++) {
-            vector<double> cl = morph::Tools::getJetColor (P[i]);
-            // drawTriFill usage: ([Hex.x/y/z], value, value, colour)
-            disp.drawTriFill (M.X[i], M.X[M.N[i][0]], M.X[M.N[i][1]], cl);
-            disp.drawTriFill (M.X[i], M.X[M.N[i][3]], M.X[M.N[i][4]], cl);
-        }
 #endif
+
+        // Step through vectors or iterate through list? The latter should be just fine here.
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl = morph::Tools::getJetColorF (/*P[i]*/ 0.1);
+            array<float,3> cl2 = morph::Tools::getJetColorF (/*P[i]*/ 0.3);
+            array<float,3> cl3 = morph::Tools::getJetColorF (/*P[i]*/ 0.8);
+            array<float,3> cl4 = morph::Tools::getJetColorF (/*P[i]*/ 0.85);
+            array<float,3> cl5 = morph::Tools::getJetColorF (/*P[i]*/ 0.95);
+            if (h.has_ne && h.has_nse) {
+                if (h.boundaryHex == true) {
+                    if (h.x == 0.0f && h.y == 0.0f) {
+                        disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl3);
+                    } else if (h.ne->x == 0.0f && h.ne->y == 0.0f) {
+                        disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl4);
+                    } else if (h.nse->x == 0.0f && h.nse->y == 0.0f) {
+                        disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl5);
+                    } else {
+                        disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl2);
+                    }
+                } else {
+                    disp.drawTriFill (h.position(), h.ne->position(), h.nse->position(), cl);
+                }
+            }
+            if (h.has_nw && h.has_nnw) {
+                disp.drawTriFill (h.position(), h.nw->position(), h.nnw->position(), cl3);
+            }
+        }
         disp.redrawDisplay();
+
+        return rtnMsg;
     }
 
+    //! Spatial integration
     vector<double> space (vector<double> x, double dx) {
         int n = x.size();
         vector<double> X(1,x[0]);
@@ -250,11 +332,12 @@ public:
     }
 
     //! Does: f = (alpha * ci) + betaterm. c.f. Karb2004, Eq 1
-    vector<double> compute_dci_dt (vector<double> ci, double alpha, vector<double> betaterm) {
+    vector<double> compute_dci_dt (unsigned int i) { //vector<double> ci, double alpha, vector<double> betaterm) {
         vector<double> dci_dt;
-        for (unsigned int xi=0; xi<ci.size(); xi++) {
-            dci_dt.push_back (alpha * ci[xi] + betaterm[xi]);
+        for (unsigned int xi=0; xi<this->nhex; xi++) {
+            dci_dt.push_back (this->alpha[i] * this->c[i][xi] + this->betaterm[i][xi]);
         }
+        // Probably best to use another intermediate member variable for dci_dt.
         return dci_dt;
     }
 
@@ -263,15 +346,16 @@ public:
      * which is alpha * ci - betaterm. Computes dJdX, then multiplies by
      * 2.dx as the sum is carried out over two distance increments.
      */
-    vector<double> compute_axonalbranchflux (vector<double> a,
-                                             vector<double> g,
-                                             double D,
-                                             double dx,
+#if 0
+    vector<double> compute_axonalbranchflux (vector<double> ai,
+                                             vector<double> gi,
                                              vector<double> addon) {
-        int n = a.size();
         double dJdX;
-        vector<double> output(n,0.);
-        for (int j=0; j<n; j++) {
+        vector<double> output(this->nhex, 0.0);
+        // This all needs a rewrite to work with adjacent hexes, or to
+        // work on a single hex and all its neighbours or something
+        // like this.
+        for (int j=0; j<this->nhex; j++) {
             if(j==0){
                 dJdX =
                     D*(a[j+2]-a[j])     -a[j+1]*g[j+1];
@@ -295,10 +379,11 @@ public:
                     D*(a[j+2]-a[j])     -a[j+1]*g[j+1]
                     -D*(a[j]-a[j-2])    +a[j-1]*g[j-1];
             }
-            output[j] = dJdX*2.*dx + addon[j];
+            output[j] = dJdX*2.*this->dx + addon[j];
         }
         return output;
     }
+#endif
 
 }; // RD_2D_Karb
 
@@ -327,12 +412,6 @@ int main (int argc, char **argv)
 {
     srand(atoi(argv[3]));
 
-    // integration timestep; should be 0.001 to match Ermentrout 2009.
-    double dt = .0005;
-
-    // INITIALIZATION
-    morph::World W(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]), dt);
-
     // DISPLAYS
     vector<morph::Gdisplay> displays;
     vector<double> fix(3, 0.0);
@@ -345,7 +424,13 @@ int main (int argc, char **argv)
 
     // Instatiate the model object
     RD_2D_Karb M;
-    M.init();
+    try {
+        M.init();
+    } catch (const exception& e) {
+        cerr << "Exception initialising RD_2D_Karb object: " << e.what() << endl;
+    }
+
+    morph::World W(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]), M.dt);
 
     // Keep track of the frame number
     unsigned int frameN = 0;
@@ -402,7 +487,7 @@ int main (int argc, char **argv)
 
         case 1: // *** STEP ***
         {
-            //W.logfile << W.processName << "@" << TIMEcs << ": 1=STEP" << endl;
+            W.logfile << W.processName << "@" << TIMEcs << ": 1=STEP" << endl;
 
             // Exchange comms [should be vector<vector<string> > commands = W.getcommand()]
             vector<vector<string> > commands(W.ports.size());
@@ -418,7 +503,11 @@ int main (int argc, char **argv)
             }
 
             // Step the model
-            M.step();
+            try {
+                M.step();
+            } catch (const exception& e) {
+                W.logfile << "Caught exception calling M.step(): " << e.what() << endl;
+            }
 
             TIME++;
             break;
@@ -426,9 +515,13 @@ int main (int argc, char **argv)
 
         case 2: // *** PLOT ***
         {
-            //W.logfile << W.processName << "@" << TIMEcs << ": 8=DISA" << endl;
+            W.logfile << W.processName << "@" << TIMEcs << ": 2=PLOT" << endl;
             displays[0].resetDisplay (fix, eye, rot);
-            M.plot (displays[0]); // would be the ideal API
+            try {
+                W.logfile << M.plot (displays[0]); // would be the ideal API
+            } catch (const exception& e) {
+                W.logfile << "Caught exception calling M.plot(): " << e.what() << endl;
+            }
             break;
         }
 
@@ -533,7 +626,7 @@ int main (int argc, char **argv)
 
         case 7:
         {
-            //W.logfile << W.processName << "@" << TIMEcs << ": 8=DISA" << endl;
+            W.logfile << W.processName << "@" << TIMEcs << ": 7=DISA" << endl;
             displays[0].resetDisplay (fix, eye, rot);
 #if 0
             for (int I=0; I<M.nFields; I++) {
@@ -592,7 +685,7 @@ int main (int argc, char **argv)
 
         case 8:
         {
-            //W.logfile << W.processName << "@" << TIMEcs << ": 8=DISA" << endl;
+            //W.logfile << W.processName << "@" << TIMEcs << ": 8=DISB" << endl;
             displays[0].resetDisplay(fix,eye,rot);
 #if 0
             double dh = fabs(M.H[0][0]-M.H[0][1])*0.5;
