@@ -185,6 +185,20 @@ namespace morph {
         float d = 1.0f;
 
         /*!
+         * A getter for d, for completeness
+         */
+        float getD (void) {
+            return this->d;
+        }
+
+        /*!
+         * Get the shortest distance from the centre to the perimeter
+         */
+        float getR (void) {
+            return this->d/2;
+        }
+
+        /*!
          * The distance from the centre of the Hex to any of the
          * vertices.
          */
@@ -199,6 +213,15 @@ namespace morph {
         float getDv (void) {
             float dv = (this->d*morph::SQRT_OF_3_F)/2.0f;
             return dv;
+        }
+
+        /*!
+         * Return twice the vertical distance between hex centres on
+         * adjacent rows.
+         */
+        float getTwoDv (void) {
+            float tdv = (this->d*morph::SQRT_OF_3_F);
+            return tdv;
         }
 
         /*!

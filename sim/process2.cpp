@@ -136,12 +136,15 @@ public:
     vector<vector<double> > betaterm;
 
     /*!
-     * Default constructor.
+     * Simple constructor; no arguments
      */
     RD_2D_Karb (void) {
         this->init();
     }
 
+    /*!
+     * Destructor required to free up HexGrid memory
+     */
     ~RD_2D_Karb (void) {
         delete (this->hg);
     }
@@ -193,7 +196,8 @@ public:
     }
 
     /*!
-     * Initialise HexGrid, variables and parameters.
+     * Initialise HexGrid, variables and parameters. Carry out
+     * one-time computations of the model.
      */
     void init (void) {
 
@@ -240,11 +244,109 @@ public:
         // Initialise a with noise
         this->noiseify_vector_vector (this->a);
 
+        // Populate parameters
+        this->gammaA[0] =  1.6;
+        this->gammaA[1] = -0.4;
+        this->gammaA[2] = -2.21;
+        this->gammaA[3] = -2.1;
+        this->gammaA[4] = -2.45;
+
+        this->gammaB[0] = -0.6;
+        this->gammaB[1] = -0.5;
+        this->gammaB[2] =  0.4;
+        this->gammaB[3] = -0.5;
+        this->gammaB[4] = -1.0;
+
+        this->gammaC[0] = -2.9;
+        this->gammaC[1] = -2.5;
+        this->gammaC[2] = -2.23;
+        this->gammaC[3] = -0.6;
+        this->gammaC[4] =  1.7;
+
+        this->alpha[0] = 1;
+        this->alpha[1] = 1;
+        this->alpha[2] = 1;
+        this->alpha[3] = 1;
+        this->alpha[4] = 1;
+
+        this->beta[0] = 1;
+        this->beta[1] = 1;
+        this->beta[2] = 1;
+        this->beta[3] = 1;
+        this->beta[4] = 1;
+
         // Put some hand-crafted 2D Gaussians in rhoA, rhoB and rhoC.
         //    createGaussian ( x      y    gain  sigma    result)
         this->createGaussian (0.2f, 0.05f, 1.0f, 0.2f, this->rhoA);
         this->createGaussian (-0.2f, 0.05f, 1.0f, 0.3f, this->rhoB);
         this->createGaussian (0.0f, -0.05f, 0.8f, 0.25f, this->rhoC);
+
+        // Compute gradients of guidance molecule concentrations once only
+#if 0
+        for (unsigned int i=0; i<this->N; ++i) {
+            this->Gsum.resize (nhex, 0.0);
+        }
+#endif
+        for (unsigned int i=0; i<this->N; ++i) {
+            this->spacegrad2D (this->rhoA, this->grad_rhoA);
+            this->spacegrad2D (this->rhoB, this->grad_rhoB);
+            this->spacegrad2D (this->rhoC, this->grad_rhoC);
+#if 0
+            for (unsigned int xi=0; xi<nx; xi++) {
+                this->Gsum[i][xi] = this->grad_rhoA[xi] + this->grad_rhoB[xi] + this->grad_rhoC[xi];
+            }
+#endif
+        }
+    }
+
+    //! 2D spatial integration of the function f. Result placed in gradf.
+    void spacegrad2D (vector<double> f, array<vector<double>, 2>& gradf) {
+
+        // For each Hex, work out the gradient in x and y directions
+        // using whatever neighbours can contribute to an estimate.
+
+        // Note - East is positive x; North is positive y.
+        for (auto h : this->hg->hexen) {
+
+            // Find x gradient
+            if (h.has_ne && h.has_nw) {
+                gradf[0][h.vi] = (f[h.ne->vi] - f[h.nw->vi]) / ((double)h.d * 2.0);
+            } else if (h.has_ne) {
+                gradf[0][h.vi] = (f[h.ne->vi] - f[h.vi]) / (double)h.d;
+            } else if (h.has_nw) {
+                gradf[0][h.vi] = (f[h.vi] - f[h.nw->vi]) / (double)h.d;
+            } else {
+                // zero gradient in x direction as no neighbours in
+                // those directions? Or possibly use the average of
+                // the graident between the nw,ne and sw,se neighbours
+            }
+
+            // Find y gradient
+            if (h.has_nnw && h.has_nne && h.has_nsw && h.has_nse) {
+            // Full complement.
+#if 0 // This is more comprehensible - the mean of two gradients.
+                grady1 = (f[h.nne->vi] - f[h.nse->vi]) / (double)h.getTwoDv();
+                grady2 = (f[h.nnw->vi] - f[h.nsw->vi]) / (double)h.getTwoDv();
+                gradf[1][h.vi] = (grady1 + grady2) / 2.0;
+#endif
+                // Equivalent:
+                gradf[1][h.vi] = ((f[h.nne->vi] - f[h.nse->vi]) + (f[h.nnw->vi] - f[h.nsw->vi])) / (double)h.getDv();
+
+            } else if (h.has_nnw && h.has_nne ) {
+                gradf[1][h.vi] = ( (f[h.nne->vi] + f[h.nnw->vi]) / 2.0 - f[h.vi]) / (double)h.getDv();
+
+            } else if (h.has_nsw && h.has_nse) {
+                gradf[1][h.vi] = (f[h.vi] - (f[h.nse->vi] + f[h.nsw->vi]) / 2.0) / (double)h.getDv();
+
+            } else if (h.has_nnw && h.has_nsw) {
+                gradf[1][h.vi] = (f[h.nnw->vi] - f[h.nsw->vi]) / (double)h.getTwoDv();
+
+            } else if (h.has_nne && h.has_nse) {
+                gradf[1][h.vi] = (f[h.nne->vi] - f[h.nse->vi]) / (double)h.getTwoDv();
+            } else {
+                // Leave grady at 0
+            }
+        }
     }
 
 #if 0
@@ -271,7 +373,7 @@ public:
     void plot (morph::Gdisplay& disp) {
 
         // Copies data to plot out of the model
-        vector<double> plt = this->a[0];
+        vector<double> plt = this->grad_rhoA[1];
         double maxV = -1e7;
         double minV = +1e7;
         // Determines min and max
@@ -303,23 +405,6 @@ public:
         disp.redrawDisplay();
 
         return;
-    }
-
-    //! Spatial integration
-    vector<double> space (vector<double> x, double dx) {
-        int n = x.size();
-        vector<double> X(1,x[0]);
-
-        for (int xi=0; xi<n; xi++) {
-            X.push_back (x[xi]);
-        }
-        X.push_back(x[n-1]);
-
-        for (int xi=0; xi<n; xi++) {
-            x[xi] = (X[xi+2]-X[xi]) * dx;
-        }
-
-        return x;
     }
 
     //! Does: f = (alpha * ci) + betaterm. c.f. Karb2004, Eq 1
