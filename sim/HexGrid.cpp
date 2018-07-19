@@ -434,6 +434,44 @@ morph::HexGrid::getd (void) const
     return this->d;
 }
 
+float
+morph::HexGrid::getXmin (float phi) const
+{
+    float xmin = 0.0f;
+    float x_ = 0.0f;
+    bool first = true;
+    for (auto h : this->hexen) {
+        x_ = h.x * cos (phi) + h.y * sin (phi);
+        if (first) {
+            xmin = x_;
+            first = false;
+        }
+        if (x_ < xmin) {
+            xmin = x_;
+        }
+    }
+    return xmin;
+}
+
+float
+morph::HexGrid::getXmax (float phi) const
+{
+    float xmax = 0.0f;
+    float x_ = 0.0f;
+    bool first = true;
+    for (auto h : this->hexen) {
+        x_ = h.x * cos (phi) + h.y * sin (phi);
+        if (first) {
+            xmax = x_;
+            first = false;
+        }
+        if (x_ > xmax) {
+            xmax = x_;
+        }
+    }
+    return xmax;
+}
+
 void
 morph::HexGrid::init (float d_, float x_span_, float z_)
 {

@@ -101,6 +101,15 @@ namespace morph {
         float getd (void) const;
 
         /*!
+         * Find the minimum or maximum value of x' on the HexGrid,
+         * where x' is the x axis rotated by phi degrees.
+         */
+        //@{
+        float getXmin (float phi = 0.0f) const;
+        float getXmax (float phi = 0.0f) const;
+        //@}
+
+        /*!
          * The list of hexes that make up this HexGrid.
          */
         list<Hex> hexen;

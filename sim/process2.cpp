@@ -102,6 +102,59 @@ public:
     //@}
 
     /*!
+     * Variables for factor expression dynamics (Eqs 5-7)
+     */
+    //@{
+    vector<double> eta_emx;
+    vector<double> eta_pax;
+    vector<double> eta_fgf;
+
+    /*!
+     * These are s(x), r(x) and f(x) in Karb2004.
+     */
+    //@}
+    vector<double> emx;
+    vector<double> pax;
+    vector<double> fgf;
+    //@}
+    //@}
+
+    /*!
+     * Parameters for factor expression dynamics (Eqs 5-7)
+     */
+    //@{
+    double Aemx = 1.34;
+    double Apax = 1.4;
+    double Afgf = 0.9;
+
+    double Chiemx = 0.094; //25.6;
+    double Chipax = 0.1;  //27.3;
+    double Chifgf = 0.098; //26.4
+
+    double v1 = 2.6;
+    double v2 = 2.7;
+    double w1 = 2.4;
+    double w2 = 2.1;
+
+    /*!
+     * Note: Using tau_emx, tau_pax, tau_fgf in place of tau_s, tau_r, tau_f
+     */
+    //@{
+    double tau_emx = 0.0001;
+    double tau_pax = 0.0001;
+    double tau_fgf = 0.0001;
+    //@}
+
+    /*!
+     * The directions of the change (in radians) in uncoupled factor
+     * concentrations
+     */
+    float diremx = 3.141593;
+    float dirpax = 0;
+    float dirfgf = 0;
+    //@}
+
+    /*!
      * Rho_A/B/C variables in Eq 4 - the concentrations of axon
      * guidance molecules A, B and C. In Karbowski 2004, these are
      * time independent and we will treat time as such, populating
@@ -225,6 +278,14 @@ public:
         this->resize_vector_variable (this->rhoB);
         this->resize_vector_variable (this->rhoC);
 
+        this->resize_vector_variable (this->eta_emx);
+        this->resize_vector_variable (this->eta_pax);
+        this->resize_vector_variable (this->eta_fgf);
+
+        this->resize_vector_variable (this->emx);
+        this->resize_vector_variable (this->pax);
+        this->resize_vector_variable (this->fgf);
+
         this->resize_vector_param (this->alpha);
         this->resize_vector_param (this->beta);
         this->resize_vector_param (this->gammaA);
@@ -281,6 +342,10 @@ public:
         this->createGaussian (-0.2f, 0.05f, 1.0f, 0.3f, this->rhoB);
         this->createGaussian (0.0f, -0.05f, 0.8f, 0.25f, this->rhoC);
 
+        this->createFactorInitialConc (this->diremx, this->Aemx, this->Chiemx, this->eta_emx);
+        this->createFactorInitialConc (this->dirpax, this->Apax, this->Chipax, this->eta_pax);
+        this->createFactorInitialConc (this->dirfgf, this->Afgf, this->Chifgf, this->eta_fgf);
+
         // Compute gradients of guidance molecule concentrations once only
         this->spacegrad2D (this->rhoA, this->grad_rhoA);
         this->spacegrad2D (this->rhoB, this->grad_rhoB);
@@ -289,7 +354,10 @@ public:
         for (unsigned int i=0; i<this->N; ++i) {
             this->Gsum[i].resize (nhex, 0.0);
             for (unsigned int h=0; h<nhex; ++h) {
-                // Here I'm adding, but does Ji have components? Revisit this question.
+                // Here I'm adding, but does Ji have components?
+                // Revisit this question. Yes, it does, but then we
+                // compute the divergence of J to get
+                // da_i/dt|diffusion
                 this->Gsum[i][h] = this->gammaA[i] * (this->grad_rhoA[0][h]  + this->grad_rhoA[1][h])
                     + this->gammaB[i] * (this->grad_rhoB[0][h] + this->grad_rhoB[1][h])
                     + this->gammaC[i] * (this->grad_rhoC[0][h] + this->grad_rhoC[1][h]);
@@ -366,7 +434,7 @@ public:
     void plot (morph::Gdisplay& disp) {
 
         // Copies data to plot out of the model
-        vector<double> plt = this->rhoA;
+        vector<double> plt = this->eta_fgf;
         double maxV = -1e7;
         double minV = +1e7;
         // Determines min and max
@@ -453,6 +521,43 @@ public:
         return output;
     }
 #endif
+
+    /*!
+     * Create a 2-D scalar field which follows a curve along one
+     * direction (at angle @a phi radians, anti-clockwise from East),
+     * being constant in the orthogonal direction. Place result into
+     * @a result.
+     *
+     * @param Afac 'A' parameter for factor fac. c.f. Aemx, Apax, etc
+     * in Karb2004.
+     *
+     * @param chifac 'chi' parameter for factor fac. c.f. Chi_emx, Chi_pax, etc
+     */
+    void createFactorInitialConc (float phi, double Afac, double chifac, vector<double>& result) {
+
+        // Work in a co-ordinate system rotated by phi radians, called x_, y_
+        double x_ = 0.0;
+
+        double cosphi = (double) cos (phi);
+        double sinphi = (double) sin (phi);
+        cout << "cosphi: " << cosphi << endl;
+        // Get minimum x and maximum x in the rotated co-ordinate system.
+        double x_min_ = this->hg->getXmin (phi);
+        cout << "x_min_: " << x_min_ << endl;
+
+        for (auto h : this->hg->hexen) {
+            // Rotate x, then offset by the minimum along that line
+            x_ = (h.x * cosphi) + (h.y * sinphi) - x_min_;
+            cout << "x:" << h.x << " x_:" << x_ << " cosphi:" << cosphi << " x_min_:" << x_min_ <<endl;
+            cout << "y:" << h.y << endl;
+            // x here is x from the Hex.
+            result[h.vi] = Afac * exp (-(x_ * x_) / (chifac * chifac));
+        }
+    }
+
+    void runExpressionDynamics (void) {
+        // Writeme
+    }
 
     /*!
      * Create a symmetric, 2D Gaussian hill centred at coordinate (x,y) with
