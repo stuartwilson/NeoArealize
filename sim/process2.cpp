@@ -127,9 +127,9 @@ public:
     double Apax = 1.4;
     double Afgf = 0.9;
 
-    double Chiemx = 0.094; //25.6;
-    double Chipax = 0.1;  //27.3;
-    double Chifgf = 0.098; //26.4
+    double Chiemx = 2.0;//0.094; //25.6;
+    double Chipax = 2.2;//0.1;  //27.3;
+    double Chifgf = 2.1;//0.098; //26.4
 
     double v1 = 2.6;
     double v2 = 2.7;
@@ -149,9 +149,25 @@ public:
      * The directions of the change (in radians) in uncoupled factor
      * concentrations
      */
+    //@{
     float diremx = 3.141593;
-    float dirpax = 0;
-    float dirfgf = 0;
+    float dirpax = 0.785; // norm 0
+    float dirfgf = -0.785; // norm 0
+    //@}
+
+    double sigmaA = 0.2;
+    double sigmaB = 0.2;
+    double sigmaC = 0.2;
+
+    double kA = 0.58;
+    double kB = 0.9;
+    double kC = 0.55;
+
+    double theta1 = 0.77;
+    double theta2 = 0.5;
+    double theta3 = 0.39;
+    double theta4 = 0.08;
+
     //@}
 
     /*!
@@ -189,10 +205,9 @@ public:
     vector<vector<double> > betaterm;
 
     /*!
-     * Simple constructor; no arguments
+     * Simple constructor; no arguments. Does nothing.
      */
     RD_2D_Karb (void) {
-        this->init();
     }
 
     /*!
@@ -252,7 +267,7 @@ public:
      * Initialise HexGrid, variables and parameters. Carry out
      * one-time computations of the model.
      */
-    void init (void) {
+    void init (vector<morph::Gdisplay>& displays) {
 
         cout << "init() called" << endl;
 
@@ -336,15 +351,16 @@ public:
         this->beta[3] = 1;
         this->beta[4] = 1;
 
-        // Put some hand-crafted 2D Gaussians in rhoA, rhoB and rhoC.
-        //    createGaussian ( x      y    gain  sigma    result)
-        this->createGaussian (0.2f, 0.05f, 1.0f, 0.2f, this->rhoA);
-        this->createGaussian (-0.2f, 0.05f, 1.0f, 0.3f, this->rhoB);
-        this->createGaussian (0.0f, -0.05f, 0.8f, 0.25f, this->rhoC);
-
+        // Generate the assumed uncoupled concentrations of growth/transcription factors
         this->createFactorInitialConc (this->diremx, this->Aemx, this->Chiemx, this->eta_emx);
         this->createFactorInitialConc (this->dirpax, this->Apax, this->Chipax, this->eta_pax);
         this->createFactorInitialConc (this->dirfgf, this->Afgf, this->Chifgf, this->eta_fgf);
+
+        // Run the expression dynamics, showing images as we go.
+        this->runExpressionDynamics (displays);
+
+        // Can now populate rhoA, rhoB and rhoC according to the paper.
+        this->populateChemoAttractants (displays);
 
         // Compute gradients of guidance molecule concentrations once only
         this->spacegrad2D (this->rhoA, this->grad_rhoA);
@@ -429,12 +445,12 @@ public:
     }
 
     /*!
-     * Plot the system on @a disp
+     * Plot the system on @a disps
      */
-    void plot (morph::Gdisplay& disp) {
+    void plot (vector<morph::Gdisplay>& disps) {
 
         // Copies data to plot out of the model
-        vector<double> plt = this->eta_fgf;
+        vector<double> plt = this->fgf;
         double maxV = -1e7;
         double minV = +1e7;
         // Determines min and max
@@ -458,14 +474,146 @@ public:
             // Reduce the boundary artificially, so it shows up.
             array<float,3> cl_bound = morph::Tools::getJetColorF (P[h.vi] * 0.8);
             if (h.boundaryHex == false) {
-                disp.drawHex (h.position(), (h.d/2.0f), cl);
+                disps[0].drawHex (h.position(), (h.d/2.0f), cl);
             } else {
-                disp.drawHex (h.position(), (h.d/2.0f), cl_bound);
+                disps[0].drawHex (h.position(), (h.d/2.0f), cl_bound);
             }
         }
-        disp.redrawDisplay();
+        disps[0].redrawDisplay();
+    }
 
-        return;
+    /*!
+     * Plot expression of emx, pax and fgf
+     */
+    void plotexpression (vector<morph::Gdisplay>& disps) {
+
+        vector<double> fix(3, 0.0);
+        vector<double> eye(3, 0.0);
+        eye[2] = -0.4;
+        vector<double> rot(3, 0.0);
+
+        // Copies data to plot out of the model
+        double maxemx = -1e7;
+        double minemx = +1e7;
+        double maxpax = -1e7;
+        double minpax = +1e7;
+        double maxfgf = -1e7;
+        double minfgf = +1e7;
+        // Determines min and max
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == false) {
+                if (this->emx[h.vi]>maxemx) { maxemx = this->emx[h.vi]; }
+                if (this->emx[h.vi]<minemx) { minemx = this->emx[h.vi]; }
+
+                if (this->pax[h.vi]>maxpax) { maxpax = this->pax[h.vi]; }
+                if (this->pax[h.vi]<minpax) { minpax = this->pax[h.vi]; }
+
+                if (this->fgf[h.vi]>maxfgf) { maxfgf = this->fgf[h.vi]; }
+                if (this->fgf[h.vi]<minfgf) { minfgf = this->fgf[h.vi]; }
+            }
+        }
+        double scaleemx = 1.0 / (maxemx-minemx);
+        double scalepax = 1.0 / (maxpax-minpax);
+        double scalefgf = 1.0 / (maxfgf-minfgf);
+
+        // Determine a colour from min, max and current value
+        vector<double> norm_emx(this->nhex, 0.0);
+        vector<double> norm_pax(this->nhex, 0.0);
+        vector<double> norm_fgf(this->nhex, 0.0);
+        for (unsigned int h=0; h<this->nhex; h++) {
+            norm_emx[h] = fmin (fmax (((this->emx[h]) - minemx) * scaleemx, 0.0), 1.0);
+            norm_pax[h] = fmin (fmax (((this->pax[h]) - minpax) * scalepax, 0.0), 1.0);
+            norm_fgf[h] = fmin (fmax (((this->fgf[h]) - minfgf) * scalefgf, 0.0), 1.0);
+        }
+
+        // Step through vectors or iterate through list? The latter should be just fine here.
+        disps[1].resetDisplay (fix, eye, rot);
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_emx = morph::Tools::getJetColorF (norm_emx[h.vi]);
+            disps[1].drawHex (h.position(), (h.d/2.0f), cl_emx);
+        }
+        disps[1].redrawDisplay();
+
+        disps[2].resetDisplay (fix, eye, rot);
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_pax = morph::Tools::getJetColorF (norm_pax[h.vi]);
+            disps[2].drawHex (h.position(), (h.d/2.0f), cl_pax);
+        }
+        disps[2].redrawDisplay();
+
+        disps[3].resetDisplay (fix, eye, rot);
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_fgf = morph::Tools::getJetColorF (norm_fgf[h.vi]);
+            disps[3].drawHex (h.position(), (h.d/2.0f), cl_fgf);
+        }
+        disps[3].redrawDisplay();
+    }
+
+    /*!
+     * Plot concentrations of chemo-attractor molecules A, B and C.
+     */
+    void plotchemo (vector<morph::Gdisplay>& disps) {
+
+        vector<double> fix(3, 0.0);
+        vector<double> eye(3, 0.0);
+        eye[2] = -0.4;
+        vector<double> rot(3, 0.0);
+
+        // Copies data to plot out of the model
+        double maxrhoA = -1e7;
+        double minrhoA = +1e7;
+        double maxrhoB = -1e7;
+        double minrhoB = +1e7;
+        double maxrhoC = -1e7;
+        double minrhoC = +1e7;
+        // Determines min and max
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == false) {
+                if (this->rhoA[h.vi]>maxrhoA) { maxrhoA = this->rhoA[h.vi]; }
+                if (this->rhoA[h.vi]<minrhoA) { minrhoA = this->rhoA[h.vi]; }
+
+                if (this->rhoB[h.vi]>maxrhoB) { maxrhoB = this->rhoB[h.vi]; }
+                if (this->rhoB[h.vi]<minrhoB) { minrhoB = this->rhoB[h.vi]; }
+
+                if (this->rhoC[h.vi]>maxrhoC) { maxrhoC = this->rhoC[h.vi]; }
+                if (this->rhoC[h.vi]<minrhoC) { minrhoC = this->rhoC[h.vi]; }
+            }
+        }
+        double scalerhoA = 1.0 / (maxrhoA-minrhoA);
+        double scalerhoB = 1.0 / (maxrhoB-minrhoB);
+        double scalerhoC = 1.0 / (maxrhoC-minrhoC);
+
+        // Determine a colour from min, max and current value
+        vector<double> norm_rhoA(this->nhex, 0.0);
+        vector<double> norm_rhoB(this->nhex, 0.0);
+        vector<double> norm_rhoC(this->nhex, 0.0);
+        for (unsigned int h=0; h<this->nhex; h++) {
+            norm_rhoA[h] = fmin (fmax (((this->rhoA[h]) - minrhoA) * scalerhoA, 0.0), 1.0);
+            norm_rhoB[h] = fmin (fmax (((this->rhoB[h]) - minrhoB) * scalerhoB, 0.0), 1.0);
+            norm_rhoC[h] = fmin (fmax (((this->rhoC[h]) - minrhoC) * scalerhoC, 0.0), 1.0);
+        }
+
+        // Step through vectors or iterate through list? The latter should be just fine here.
+        disps[1].resetDisplay (fix, eye, rot);
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_rhoA = morph::Tools::getJetColorF (norm_rhoA[h.vi]);
+            disps[1].drawHex (h.position(), (h.d/2.0f), cl_rhoA);
+        }
+        disps[1].redrawDisplay();
+
+        disps[2].resetDisplay (fix, eye, rot);
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_rhoB = morph::Tools::getJetColorF (norm_rhoB[h.vi]);
+            disps[2].drawHex (h.position(), (h.d/2.0f), cl_rhoB);
+        }
+        disps[2].redrawDisplay();
+
+        disps[3].resetDisplay (fix, eye, rot);
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_rhoC = morph::Tools::getJetColorF (norm_rhoC[h.vi]);
+            disps[3].drawHex (h.position(), (h.d/2.0f), cl_rhoC);
+        }
+        disps[3].redrawDisplay();
     }
 
     //! Does: f = (alpha * ci) + betaterm. c.f. Karb2004, Eq 1
@@ -548,15 +696,42 @@ public:
         for (auto h : this->hg->hexen) {
             // Rotate x, then offset by the minimum along that line
             x_ = (h.x * cosphi) + (h.y * sinphi) - x_min_;
-            cout << "x:" << h.x << " x_:" << x_ << " cosphi:" << cosphi << " x_min_:" << x_min_ <<endl;
-            cout << "y:" << h.y << endl;
             // x here is x from the Hex.
             result[h.vi] = Afac * exp (-(x_ * x_) / (chifac * chifac));
         }
     }
 
-    void runExpressionDynamics (void) {
-        // Writeme
+    /*!
+     * Execute Eqs 5-7 of the Karbowski paper to find the steady state
+     * of the growth/transcription factors after they have interacted
+     * for a long time.
+     */
+    void runExpressionDynamics (vector<morph::Gdisplay>& displays) {
+        for (unsigned int t=0; t<300000; ++t) { // 300000 is correct?
+            for (auto h : this->hg->hexen) {
+                emx[h.vi] += tau_emx * (-emx[h.vi] + eta_emx[h.vi] / (1. + w2 * fgf[h.vi] + v2 * pax[h.vi]));
+                pax[h.vi] += tau_pax * (-pax[h.vi] + eta_pax[h.vi] / (1. + v1 * emx[h.vi]));
+                fgf[h.vi] += tau_fgf * (-fgf[h.vi] + eta_fgf[h.vi] / (1. + w1 * emx[h.vi]));
+            }
+            if (t%1000 == 0) {
+                cout << "Plot for t=" << t << endl;
+                this->plotexpression (displays);
+            }
+        }
+    }
+
+    /*!
+     * Using this->emx, this->pax and this->fgf, populate rhoA/B/C
+     */
+    void populateChemoAttractants (vector<morph::Gdisplay>& displays) {
+        // chemo-attraction gradient. cf Fig 1 of Karb 2004
+        for (int h=0; h<this->nhex; ++h) {
+            this->rhoA[h] = (kA/2.)*(1.+tanh((fgf[h]-theta1)/sigmaA));
+            this->rhoB[h] = (kB/2.)*(1.+tanh((theta2-fgf[h])/sigmaB))*(kB/2.)*(1.+tanh((fgf[h]-theta3)/sigmaB));
+            this->rhoC[h] = (kC/2.)*(1.+tanh((theta4-fgf[h])/sigmaC));
+
+            this->plotchemo (displays);
+        }
     }
 
     /*!
@@ -602,26 +777,6 @@ public:
 
 }; // RD_2D_Karb
 
-#if 0
-/*!
- * c is threshold. p is value of the thing you're contouring; P is a
- * vector of the values in the adjacent hexes, with P[0] being the ___
- * hex.
- */
-vector<int> getEdges (double p, vector<double>  P, double c)
-{
-    vector<int> k;
-    if (p<c) {
-        if (P[0]>c) { k.push_back(0); }
-        if (P[1]>c) { k.push_back(1); }
-        if (P[2]>c) { k.push_back(2); }
-        if (P[3]>c) { k.push_back(3); }
-        if (P[4]>c) { k.push_back(4); }
-        if (P[5]>c) { k.push_back(5); }
-    }
-    return k;
-}
-#endif
 
 int main (int argc, char **argv)
 {
@@ -634,13 +789,25 @@ int main (int argc, char **argv)
     eye[2] = -0.4;
     vector<double> rot(3, 0.0);
     displays.push_back (morph::Gdisplay (600, "morphologica", 0.0, 0.0, 0.0));
-    displays[0].resetDisplay (fix, eye, rot);
-    displays[0].redrawDisplay();
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
 
-    // Instatiate the model object
+    displays.push_back (morph::Gdisplay (600, "emx", 0.0, 0.0, 0.0));
+    displays[1].resetDisplay (fix, eye, rot);
+    displays[1].redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "pax", 0.0, 0.0, 0.0));
+    displays[2].resetDisplay (fix, eye, rot);
+    displays[2].redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "fgf", 0.0, 0.0, 0.0));
+    displays[3].resetDisplay (fix, eye, rot);
+    displays[3].redrawDisplay();
+
+    // Instantiate the model object
     RD_2D_Karb M;
     try {
-        M.init();
+        M.init (displays);
     } catch (const exception& e) {
         cerr << "Exception initialising RD_2D_Karb object: " << e.what() << endl;
     }
@@ -733,7 +900,7 @@ int main (int argc, char **argv)
             W.logfile << W.processName << "@" << TIMEcs << ": 2=PLOT" << endl;
             displays[0].resetDisplay (fix, eye, rot);
             try {
-                M.plot (displays[0]);
+                M.plot (displays);
             } catch (const exception& e) {
                 W.logfile << "Caught exception calling M.plot(): " << e.what() << endl;
             }
