@@ -122,7 +122,7 @@ int main (int argc, char **argv)
         eta_fgf[i] = Afgf * exp (-(x*x) / (Cfgf * Cfgf));
     }
 
-    // Precompute the density of the guidance molecules.
+    // Precompute the density of the guidance molecules. Eqs 5-7 in Karb2004.
     vector<double> s(nx,0.), r(nx,0.), f(nx,0.);
     double taus = 0.0001, taur = 0.0001, tauf = 0.0001;
     for(int t=0;t<300000;t++){
@@ -133,7 +133,7 @@ int main (int argc, char **argv)
         }
     }
 
-    // chemo-attraction gradient
+    // chemo-attraction gradient. cf Fig 1 of Karb 2004
     vector<double> pA(nx,0.), pB(nx,0.), pC(nx,0.);
     for (int i=0;i<nx;i++) {
         pA[i] = (kA/2.)*(1.+tanh((f[i]-theta1)/sigmaA));
