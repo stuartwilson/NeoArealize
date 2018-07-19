@@ -282,21 +282,20 @@ public:
         this->createGaussian (0.0f, -0.05f, 0.8f, 0.25f, this->rhoC);
 
         // Compute gradients of guidance molecule concentrations once only
+        this->spacegrad2D (this->rhoA, this->grad_rhoA);
+        this->spacegrad2D (this->rhoB, this->grad_rhoB);
+        this->spacegrad2D (this->rhoC, this->grad_rhoC);
 #if 0
         for (unsigned int i=0; i<this->N; ++i) {
-            this->Gsum.resize (nhex, 0.0);
-        }
-#endif
-        for (unsigned int i=0; i<this->N; ++i) {
-            this->spacegrad2D (this->rhoA, this->grad_rhoA);
-            this->spacegrad2D (this->rhoB, this->grad_rhoB);
-            this->spacegrad2D (this->rhoC, this->grad_rhoC);
-#if 0
-            for (unsigned int xi=0; xi<nx; xi++) {
-                this->Gsum[i][xi] = this->grad_rhoA[xi] + this->grad_rhoB[xi] + this->grad_rhoC[xi];
+            this->Gsum[i].resize (nhex, 0.0);
+            for (unsigned int h=0; h<nhex; ++h) {
+                // Here I'm adding, but does Ji have components? Revisit this question.
+                this->Gsum[i][h] = this->gammaA[i] * (this->grad_rhoA[0][h]  + this->grad_rhoA[1][h])
+                    + this->gammaB[i] * (this->grad_rhoB[0][h] + this->grad_rhoB[1][h])
+                    + this->gammaC[i] * (this->grad_rhoC[0][h] + this->grad_rhoC[1][h]);
             }
-#endif
         }
+#endif
     }
 
     //! 2D spatial integration of the function f. Result placed in gradf.
@@ -318,18 +317,12 @@ public:
             } else {
                 // zero gradient in x direction as no neighbours in
                 // those directions? Or possibly use the average of
-                // the graident between the nw,ne and sw,se neighbours
+                // the gradient between the nw,ne and sw,se neighbours
             }
 
             // Find y gradient
             if (h.has_nnw && h.has_nne && h.has_nsw && h.has_nse) {
-            // Full complement.
-#if 0 // This is more comprehensible - the mean of two gradients.
-                grady1 = (f[h.nne->vi] - f[h.nse->vi]) / (double)h.getTwoDv();
-                grady2 = (f[h.nnw->vi] - f[h.nsw->vi]) / (double)h.getTwoDv();
-                gradf[1][h.vi] = (grady1 + grady2) / 2.0;
-#endif
-                // Equivalent:
+                // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
                 gradf[1][h.vi] = ((f[h.nne->vi] - f[h.nse->vi]) + (f[h.nnw->vi] - f[h.nsw->vi])) / (double)h.getDv();
 
             } else if (h.has_nnw && h.has_nne ) {
@@ -373,7 +366,7 @@ public:
     void plot (morph::Gdisplay& disp) {
 
         // Copies data to plot out of the model
-        vector<double> plt = this->grad_rhoA[1];
+        vector<double> plt = this->rhoA;
         double maxV = -1e7;
         double minV = +1e7;
         // Determines min and max
