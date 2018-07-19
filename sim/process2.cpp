@@ -56,20 +56,39 @@ public:
     vector<array<vector<double>, 2> > grad_a;
 
     /*!
+     * Contains the chemo-attractant modifiers which are applied to
+     * a_i(x,t) in Eq 4.
+     */
+    vector<array<vector<double>, 2> > chemo;
+
+    /*!
      * n(x,t) variable from the Karb2004 paper.
      */
     vector<double> n;
 
     /*!
      * J_i(x,t) variables - the "flux current of axonal branches of
-     * type i"
+     * type i". This is a vector field.
      */
-    vector<vector<double> > J;
+    vector<array<vector<double>, 2> > J;
+
+    /*!
+     * Holds the divergence of the J_i(x)s
+     */
+    vector<vector<double> > divJ;
 
     /*!
      * Our choice of dt.
      */
-    double dt = 0.001;
+    double dt = 0.1;
+
+    /*!
+     * Compute half and sixth dt in constructor.
+     */
+    //@{
+    double halfdt = 0.0;
+    double sixthdt = 0.0;
+    //@}
 
     /*!
      * The power to which a_i(x,t) is raised in Eqs 1 and 2 in the
@@ -80,7 +99,7 @@ public:
     /*!
      * The diffusion parameter.
      */
-    array<double,2> D = { { 1.0, 1.0 } };
+    double D = 0.1;
 
     /*!
      * alpha_i parameters
@@ -205,9 +224,18 @@ public:
     vector<vector<double> > betaterm;
 
     /*!
-     * Simple constructor; no arguments. Does nothing.
+     * Holds an intermediate value for the computation of Eqs 1 and 2.
+     */
+    vector<vector<double> > alpha_c_beta_na;
+
+    unsigned int stepCount = 0;
+
+    /*!
+     * Simple constructor; no arguments.
      */
     RD_2D_Karb (void) {
+        this->halfdt = this->dt/2.0;
+        this->sixthdt = this->dt/6.0;
     }
 
     /*!
@@ -251,6 +279,18 @@ public:
     }
 
     /*!
+     * Resize a vector (over TC types i) of an array of two
+     * vector<double>s which are the x and y components of a
+     * (mathematical) vector field.
+     */
+    void resize_vector_array_vector (vector<array<vector<double>, 2> >& vav) {
+        vav.resize (this->N);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            this->resize_gradient_field (vav[i]);
+        }
+    }
+
+    /*!
      * Initialise this vector of vectors with noise. This is a
      * model-specific function.
      */
@@ -285,8 +325,9 @@ public:
         // Resize and zero-initialise the various containers
         this->resize_vector_vector (this->c);
         this->resize_vector_vector (this->a);
-        this->resize_vector_vector (this->J);
         this->resize_vector_vector (this->betaterm);
+        this->resize_vector_vector (this->alpha_c_beta_na);
+        this->resize_vector_vector (this->divJ);
 
         this->resize_vector_variable (this->n);
         this->resize_vector_variable (this->rhoA);
@@ -311,11 +352,10 @@ public:
         this->resize_gradient_field (this->grad_rhoB);
         this->resize_gradient_field (this->grad_rhoC);
 
-        // Resize grad_a
-        this->grad_a.resize (this->N);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            this->resize_gradient_field (this->grad_a[i]);
-        }
+        // Resize grad_a and other vector-array-vectors
+        this->resize_vector_array_vector (this->grad_a);
+        this->resize_vector_array_vector (this->chemo);
+        this->resize_vector_array_vector (this->J);
 
         // Initialise a with noise
         this->noiseify_vector_vector (this->a);
@@ -366,30 +406,83 @@ public:
         this->spacegrad2D (this->rhoA, this->grad_rhoA);
         this->spacegrad2D (this->rhoB, this->grad_rhoB);
         this->spacegrad2D (this->rhoC, this->grad_rhoC);
-#if 0
+
+        // Having computed gradients, build this->chemo; has to be done once only.
         for (unsigned int i=0; i<this->N; ++i) {
-            this->Gsum[i].resize (nhex, 0.0);
-            for (unsigned int h=0; h<nhex; ++h) {
+            for (unsigned int h=0; h<this->nhex; ++h) {
                 // Here I'm adding, but does Ji have components?
                 // Revisit this question. Yes, it does, but then we
                 // compute the divergence of J to get
                 // da_i/dt|diffusion
-                this->Gsum[i][h] = this->gammaA[i] * (this->grad_rhoA[0][h]  + this->grad_rhoA[1][h])
-                    + this->gammaB[i] * (this->grad_rhoB[0][h] + this->grad_rhoB[1][h])
-                    + this->gammaC[i] * (this->grad_rhoC[0][h] + this->grad_rhoC[1][h]);
+                this->chemo[i][0][h] = this->gammaA[i] * this->grad_rhoA[0][h]
+                    + this->gammaB[i] * this->grad_rhoB[0][h]
+                    + this->gammaC[i] * this->grad_rhoC[0][h];
+                this->chemo[i][1][h] = this->gammaA[i] * this->grad_rhoA[1][h]
+                    + this->gammaB[i] * this->grad_rhoB[1][h]
+                    + this->gammaC[i] * this->grad_rhoC[1][h];
             }
         }
-#endif
     }
 
-    //! 2D spatial integration of the function f. Result placed in gradf.
-    void spacegrad2D (vector<double> f, array<vector<double>, 2>& gradf) {
+    /*!
+     * Compute the divergence of the vector field vf, placing the
+     * result in div_vf.
+     */
+    void divergence (array<vector<double>, 2>& vf, vector<double>& div_vf) {
+        // It's dvf_x/dx + dvf_y/dy. Our incoming vector field, vf is
+        // already in plain old x,y coordinates, but we do need to
+        // compute change of values between adjacent hexes.
+        for (auto h : this->hg->hexen) {
+            div_vf[h.vi] = 0.0;
+            // Find x gradient of vf[0]
+            if (h.has_ne && h.has_nw) {
+                div_vf[h.vi] = (vf[0][h.ne->vi] - vf[0][h.nw->vi]) / ((double)h.d * 2.0);
+            } else if (h.has_ne) {
+                div_vf[h.vi] = (vf[0][h.ne->vi] - vf[0][h.vi]) / (double)h.d;
+            } else if (h.has_nw) {
+                div_vf[h.vi] = (vf[0][h.vi] - vf[0][h.nw->vi]) / (double)h.d;
+            } else {
+                // zero gradient in x direction as no neighbours in
+                // those directions? Or possibly use the average of
+                // the gradient between the nw,ne and sw,se neighbours
+            }
 
-        // For each Hex, work out the gradient in x and y directions
-        // using whatever neighbours can contribute to an estimate.
+            // Add on the y gradient of vf[1]
+            if (h.has_nnw && h.has_nne && h.has_nsw && h.has_nse) {
+                // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
+                div_vf[h.vi] += ((vf[1][h.nne->vi] - vf[1][h.nse->vi]) + (vf[1][h.nnw->vi] - vf[1][h.nsw->vi])) / (double)h.getDv();
+
+            } else if (h.has_nnw && h.has_nne ) {
+                div_vf[h.vi] += ( (vf[1][h.nne->vi] + vf[1][h.nnw->vi]) / 2.0 - vf[1][h.vi]) / (double)h.getDv();
+
+            } else if (h.has_nsw && h.has_nse) {
+                div_vf[h.vi] += (vf[1][h.vi] - (vf[1][h.nse->vi] + vf[1][h.nsw->vi]) / 2.0) / (double)h.getDv();
+
+            } else if (h.has_nnw && h.has_nsw) {
+                div_vf[h.vi] += (vf[1][h.nnw->vi] - vf[1][h.nsw->vi]) / (double)h.getTwoDv();
+
+            } else if (h.has_nne && h.has_nse) {
+                div_vf[h.vi] += (vf[1][h.nne->vi] - vf[1][h.nse->vi]) / (double)h.getTwoDv();
+            } else {
+                // Leave grady at 0
+            }
+        }
+    }
+
+    /*!
+     * 2D spatial integration of the function f. Result placed in gradf.
+     *
+     * For each Hex, work out the gradient in x and y directions
+     * using whatever neighbours can contribute to an estimate.
+     */
+    void spacegrad2D (vector<double>& f, array<vector<double>, 2>& gradf) {
+
 
         // Note - East is positive x; North is positive y.
         for (auto h : this->hg->hexen) {
+
+            gradf[0][h.vi] = 0.0;
+            gradf[1][h.vi] = 0.0;
 
             // Find x gradient
             if (h.has_ne && h.has_nw) {
@@ -437,49 +530,157 @@ public:
     }
 #endif
 
+    /*!
+     * Do a step through the model.
+     *
+     * T460s manages about 20 of these per second.
+     */
     void step (void) {
-        // Do some work. The order of proceedings is:
-        // 1. Compute Karb2004 Eq 3.
+
+        this->stepCount++;
+
+        if (this->stepCount % 100 == 0) {
+            cout << "100 steps done..." << endl;
+        }
+
+        // 1. Compute Karb2004 Eq 3. (coupling between connections made by each TC type)
+        for (auto h : this->hg->hexen) {
+            for (unsigned int i=0; i<N; ++i) {
+                n[h.vi] += c[i][h.vi];
+            }
+            n[h.vi] = 1. - n[h.vi];
+        }
+
         // 2. Do integration of a (RK in the 1D model). Involves computing axon branching flux.
+
+        // Pre-compute intermediate val:
+        // FIXME Could precompute betaterm first, then use it in this avoiding more pow(a, k)s
+        for (unsigned int i=0; i<this->N; ++i) {
+            for (unsigned int h=0; h<this->nhex; ++h) {
+                this->alpha_c_beta_na[i][h] = alpha[i] * c[i][h] - beta[i] * n[h] * pow (a[i][h], k);
+            }
+        }
+
+        // Runge-Kutta:
+        for (unsigned int i=0; i<this->N; ++i) {
+
+            // Runge-Kutta integration for A
+            vector<double> q(this->nhex, 0.0);
+            this->compute_axonalbranchflux (a[i], i); // populates divJ[i]
+            vector<double> k1(this->nhex, 0.0);
+            for (unsigned int h=0; h<this->nhex; ++h) {
+                k1[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
+                q[h] = this->a[i][h] + k1[h] * halfdt;
+            }
+
+            vector<double> k2(this->nhex, 0.0);
+            this->compute_axonalbranchflux (q, i);
+            for (unsigned int h=0; h<this->nhex; ++h) {
+                k2[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
+                q[h] = this->a[i][h] + k2[h] * halfdt;
+            }
+
+            vector<double> k3(this->nhex, 0.0);
+            this->compute_axonalbranchflux (q, i);
+            for (unsigned int h=0; h<this->nhex; ++h) {
+                k3[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
+                q[h] = this->a[i][h] + k3[h] * dt;
+            }
+
+            vector<double> k4(this->nhex, 0.0);
+            this->compute_axonalbranchflux (q, i);
+            for (unsigned int h=0; h<this->nhex; ++h) {
+                k4[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
+                a[i][h] += (k1[h] + 2.0 * (k2[h] + k3[h]) + k4[h]) * sixthdt;
+                if (abs(a[i][h]) > 0) {
+                    cout << "a[i][h]>0 : " << a[i][h] << endl;
+                }
+            }
+        }
+
         // 3. Do integration of c
+        for (unsigned int i=0; i<this->N; ++i) {
+
+            for (unsigned int h=0; h<nhex; h++) {
+                this->betaterm[i][h] = beta[i] * n[h] * pow (a[i][h], k);
+            }
+            // Runge-Kutta integration for C (or ci)
+            vector<double> q(nhex,0.);
+            vector<double> k1 = compute_dci_dt (c[i], i);
+            for (unsigned int h=0; h<nhex; h++) {
+                q[h] = c[i][h] + k1[h] * halfdt;
+            }
+
+            vector<double> k2 = compute_dci_dt (q, i);
+            for (unsigned int h=0; h<nhex; h++) {
+                q[h] = c[i][h] + k2[h] * halfdt;
+            }
+
+            vector<double> k3 = compute_dci_dt (q, i);
+            for (unsigned int h=0; h<nhex; h++) {
+                q[h] = c[i][h] + k3[h] * dt;
+            }
+
+            vector<double> k4 = compute_dci_dt (q, i);
+            for (unsigned int h=0; h<nhex; h++) {
+                c[i][h] += (k1[h]+2. * (k2[h] + k3[h]) + k4[h]) * sixthdt;
+            }
+        }
     }
 
     /*!
      * Plot the system on @a disps
      */
     void plot (vector<morph::Gdisplay>& disps) {
+        this->plot_f (this->a, disps, 6);
+        this->plot_f (this->c, disps, 11);
+    }
+
+    /*!
+     * Plot a or c
+     */
+    void plot_f (vector<vector<double> >& f, vector<morph::Gdisplay>& disps, unsigned int display_offset) {
+
+        vector<double> fix(3, 0.0);
+        vector<double> eye(3, 0.0);
+        eye[2] = -0.4;
+        vector<double> rot(3, 0.0);
 
         // Copies data to plot out of the model
-        vector<double> plt = this->fgf;
-        double maxV = -1e7;
-        double minV = +1e7;
+        vector<double> maxa (5, -1e7);
+        vector<double> mina (5, +1e7);
         // Determines min and max
         for (auto h : this->hg->hexen) {
             if (h.onBoundary() == false) {
-                if (plt[h.vi]>maxV) { maxV = plt[h.vi]; }
-                if (plt[h.vi]<minV) { minV = plt[h.vi]; }
+                for (unsigned int i = 0; i<this->N; ++i) {
+                    if (f[i][h.vi]>maxa[i]) { maxa[i] = f[i][h.vi]; }
+                    if (f[i][h.vi]<mina[i]) { mina[i] = f[i][h.vi]; }
+                }
             }
         }
-        double scaleV = 1.0 / (maxV-minV);
+        vector<double> scalea (5, 0);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            scalea[i] = 1.0 / (maxa[i]-mina[i]);
+        }
 
         // Determine a colour from min, max and current value
-        vector<double> P(this->nhex, 0.0);
-        for (unsigned int h=0; h<this->nhex; h++) {
-            P[h] = fmin (fmax (((plt[h]) - minV) * scaleV, 0.0), 1.0);
-        }
-
-        // Step through vectors or iterate through list? The latter should be just fine here.
-        for (auto h : this->hg->hexen) {
-            array<float,3> cl = morph::Tools::getJetColorF (P[h.vi]);
-            // Reduce the boundary artificially, so it shows up.
-            array<float,3> cl_bound = morph::Tools::getJetColorF (P[h.vi] * 0.8);
-            if (h.boundaryHex == false) {
-                disps[0].drawHex (h.position(), (h.d/2.0f), cl);
-            } else {
-                disps[0].drawHex (h.position(), (h.d/2.0f), cl_bound);
+        vector<vector<double> > norm_a;
+        this->resize_vector_vector (norm_a);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            for (unsigned int h=0; h<this->nhex; h++) {
+                norm_a[i][h] = fmin (fmax (((f[i][h]) - mina[i]) * scalea[i], 0.0), 1.0);
             }
         }
-        disps[0].redrawDisplay();
+
+        // Draw
+        for (unsigned int i = 0; i<this->N; ++i) {
+            disps[i+display_offset].resetDisplay (fix, eye, rot);
+            for (auto h : this->hg->hexen) {
+                array<float,3> cl_a = morph::Tools::getJetColorF (norm_a[i][h.vi]);
+                disps[i+display_offset].drawHex (h.position(), (h.d/2.0f), cl_a);
+            }
+            disps[i+display_offset].redrawDisplay();
+        }
     }
 
     /*!
@@ -527,26 +728,26 @@ public:
         }
 
         // Step through vectors or iterate through list? The latter should be just fine here.
-        disps[1].resetDisplay (fix, eye, rot);
+        disps[0].resetDisplay (fix, eye, rot);
         for (auto h : this->hg->hexen) {
             array<float,3> cl_emx = morph::Tools::getJetColorF (norm_emx[h.vi]);
-            disps[1].drawHex (h.position(), (h.d/2.0f), cl_emx);
+            disps[0].drawHex (h.position(), (h.d/2.0f), cl_emx);
+        }
+        disps[0].redrawDisplay();
+
+        disps[1].resetDisplay (fix, eye, rot);
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_pax = morph::Tools::getJetColorF (norm_pax[h.vi]);
+            disps[1].drawHex (h.position(), (h.d/2.0f), cl_pax);
         }
         disps[1].redrawDisplay();
 
         disps[2].resetDisplay (fix, eye, rot);
         for (auto h : this->hg->hexen) {
-            array<float,3> cl_pax = morph::Tools::getJetColorF (norm_pax[h.vi]);
-            disps[2].drawHex (h.position(), (h.d/2.0f), cl_pax);
+            array<float,3> cl_fgf = morph::Tools::getJetColorF (norm_fgf[h.vi]);
+            disps[2].drawHex (h.position(), (h.d/2.0f), cl_fgf);
         }
         disps[2].redrawDisplay();
-
-        disps[3].resetDisplay (fix, eye, rot);
-        for (auto h : this->hg->hexen) {
-            array<float,3> cl_fgf = morph::Tools::getJetColorF (norm_fgf[h.vi]);
-            disps[3].drawHex (h.position(), (h.d/2.0f), cl_fgf);
-        }
-        disps[3].redrawDisplay();
     }
 
     /*!
@@ -594,81 +795,59 @@ public:
         }
 
         // Step through vectors or iterate through list? The latter should be just fine here.
-        disps[1].resetDisplay (fix, eye, rot);
-        for (auto h : this->hg->hexen) {
-            array<float,3> cl_rhoA = morph::Tools::getJetColorF (norm_rhoA[h.vi]);
-            disps[1].drawHex (h.position(), (h.d/2.0f), cl_rhoA);
-        }
-        disps[1].redrawDisplay();
-
-        disps[2].resetDisplay (fix, eye, rot);
-        for (auto h : this->hg->hexen) {
-            array<float,3> cl_rhoB = morph::Tools::getJetColorF (norm_rhoB[h.vi]);
-            disps[2].drawHex (h.position(), (h.d/2.0f), cl_rhoB);
-        }
-        disps[2].redrawDisplay();
-
         disps[3].resetDisplay (fix, eye, rot);
         for (auto h : this->hg->hexen) {
-            array<float,3> cl_rhoC = morph::Tools::getJetColorF (norm_rhoC[h.vi]);
-            disps[3].drawHex (h.position(), (h.d/2.0f), cl_rhoC);
+            array<float,3> cl_rhoA = morph::Tools::getJetColorF (norm_rhoA[h.vi]);
+            disps[3].drawHex (h.position(), (h.d/2.0f), cl_rhoA);
         }
         disps[3].redrawDisplay();
+
+        disps[4].resetDisplay (fix, eye, rot);
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_rhoB = morph::Tools::getJetColorF (norm_rhoB[h.vi]);
+            disps[4].drawHex (h.position(), (h.d/2.0f), cl_rhoB);
+        }
+        disps[4].redrawDisplay();
+
+        disps[5].resetDisplay (fix, eye, rot);
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_rhoC = morph::Tools::getJetColorF (norm_rhoC[h.vi]);
+            disps[5].drawHex (h.position(), (h.d/2.0f), cl_rhoC);
+        }
+        disps[5].redrawDisplay();
     }
 
-    //! Does: f = (alpha * ci) + betaterm. c.f. Karb2004, Eq 1
-    vector<double> compute_dci_dt (unsigned int i) { //vector<double> ci, double alpha, vector<double> betaterm) {
-        vector<double> dci_dt;
-        for (unsigned int xi=0; xi<this->nhex; xi++) {
-            dci_dt.push_back (this->alpha[i] * this->c[i][xi] + this->betaterm[i][xi]);
+    /*!
+     * Does: f = (alpha * f) + betaterm. c.f. Karb2004, Eq 1. f is
+     * c[i] or q from the RK algorithm.
+     */
+    vector<double> compute_dci_dt (vector<double>& f, unsigned int i) {
+        vector<double> dci_dt (this->nhex, 0.0);
+        for (unsigned int h=0; h<this->nhex; h++) {
+            dci_dt[h] = this->betaterm[i][h] - this->alpha[i] * f[h];
         }
-        // Probably best to use another intermediate member variable for dci_dt.
         return dci_dt;
     }
 
-#if 0
     /*!
-     * Computes the "flux of axonal branches" term, and adds "addon",
-     * which is alpha * ci - betaterm. Computes dJdX, then multiplies by
-     * 2.dx as the sum is carried out over two distance increments.
+     * Computes the "flux of axonal branches" term, J_i(x) (Eq 4)
+     *
+     * Inputs: this->chemo, f (which is this->a[i] or a q in the RK
+     * algorithm), this->D, @a i, the TC type.  Helper functions:
+     * spacegrad2D(), divergence().  Output: this->divJ
      */
-    vector<double> compute_axonalbranchflux (vector<double> ai,
-                                             vector<double> gi,
-                                             vector<double> addon) {
-        double dJdX;
-        vector<double> output(this->nhex, 0.0);
-        // This all needs a rewrite to work with adjacent hexes, or to
-        // work on a single hex and all its neighbours or something
-        // like this.
-        for (int j=0; j<this->nhex; j++) {
-            if(j==0){
-                dJdX =
-                    D*(a[j+2]-a[j])     -a[j+1]*g[j+1];
-            }
-            else if(j==1) {
-                dJdX =
-                    D*(a[j+2]-a[j])     -a[j+1]*g[j+1]
-                    -D*(a[j]-a[j-1])    +a[j-1]*g[j-1];
-            }
-            else if(j==n-1){
-                dJdX =
-                    -D*(a[j]-a[j-1])    +a[j]*g[j];
-            }
-            else if (j==n-2) {
-                dJdX =
-                    D*(a[j+1]-a[j])     -a[j+1]*g[j+1]
-                    -D*(a[j]-a[j-2])    +a[j-1]*g[j-1];
-            }
-            else {
-                dJdX =
-                    D*(a[j+2]-a[j])     -a[j+1]*g[j+1]
-                    -D*(a[j]-a[j-2])    +a[j-1]*g[j-1];
-            }
-            output[j] = dJdX*2.*this->dx + addon[j];
+    void compute_axonalbranchflux (vector<double>& f, unsigned int i) {
+
+        // Compute gradient of a_i(x)
+        this->spacegrad2D (f, this->grad_a[i]);
+        // Compute J
+        for (unsigned int h = 0; h<this->nhex; ++h) {
+            this->J[i][0][h] = this->D * this->grad_a[i][0][h] - f[h] * this->chemo[i][0][h];
+            this->J[i][1][h] = this->D * this->grad_a[i][1][h] - f[h] * this->chemo[i][1][h];
         }
-        return output;
+        // Compute divergence of J
+        this->divergence (this->J[i], this->divJ[i]);
     }
-#endif
 
     /*!
      * Create a 2-D scalar field which follows a curve along one
@@ -707,7 +886,7 @@ public:
      * for a long time.
      */
     void runExpressionDynamics (vector<morph::Gdisplay>& displays) {
-        for (unsigned int t=0; t<300000; ++t) { // 300000 is correct?
+        for (unsigned int t=0; t<30000; ++t) { // 300000 matches Stuart's 1D Karbowski model
             for (auto h : this->hg->hexen) {
                 emx[h.vi] += tau_emx * (-emx[h.vi] + eta_emx[h.vi] / (1. + w2 * fgf[h.vi] + v2 * pax[h.vi]));
                 pax[h.vi] += tau_pax * (-pax[h.vi] + eta_pax[h.vi] / (1. + v1 * emx[h.vi]));
@@ -725,13 +904,13 @@ public:
      */
     void populateChemoAttractants (vector<morph::Gdisplay>& displays) {
         // chemo-attraction gradient. cf Fig 1 of Karb 2004
-        for (int h=0; h<this->nhex; ++h) {
+        for (unsigned int h=0; h<this->nhex; ++h) {
             this->rhoA[h] = (kA/2.)*(1.+tanh((fgf[h]-theta1)/sigmaA));
             this->rhoB[h] = (kB/2.)*(1.+tanh((theta2-fgf[h])/sigmaB))*(kB/2.)*(1.+tanh((fgf[h]-theta3)/sigmaB));
             this->rhoC[h] = (kC/2.)*(1.+tanh((theta4-fgf[h])/sigmaC));
 
-            this->plotchemo (displays);
         }
+        this->plotchemo (displays);
     }
 
     /*!
@@ -788,21 +967,70 @@ int main (int argc, char **argv)
     vector<double> eye(3, 0.0);
     eye[2] = -0.4;
     vector<double> rot(3, 0.0);
-    displays.push_back (morph::Gdisplay (600, "morphologica", 0.0, 0.0, 0.0));
+
+    displays.push_back (morph::Gdisplay (600, "emx", 0.0, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "emx", 0.0, 0.0, 0.0));
-    displays[1].resetDisplay (fix, eye, rot);
-    displays[1].redrawDisplay();
-
     displays.push_back (morph::Gdisplay (600, "pax", 0.0, 0.0, 0.0));
-    displays[2].resetDisplay (fix, eye, rot);
-    displays[2].redrawDisplay();
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
 
     displays.push_back (morph::Gdisplay (600, "fgf", 0.0, 0.0, 0.0));
-    displays[3].resetDisplay (fix, eye, rot);
-    displays[3].redrawDisplay();
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "rhoA", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "rhoB", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "rhoC", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "a[0]", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "a[1]", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "a[2]", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "a[3]", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "a[4]", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "c[0]", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "c[1]", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "c[2]", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "c[3]", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    displays.push_back (morph::Gdisplay (600, "c[4]", 0.0, 0.0, 0.0));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
 
     // Instantiate the model object
     RD_2D_Karb M;
@@ -1003,96 +1231,6 @@ int main (int argc, char **argv)
                 W.logfile << "No input filename." << endl;
             }
 #endif
-            break;
-        }
-
-        case 7:
-        {
-            W.logfile << W.processName << "@" << TIMEcs << ": 7=DISA" << endl;
-            displays[0].resetDisplay (fix, eye, rot);
-#if 0
-            for (int I=0; I<M.nFields; I++) {
-
-                vector<double> contourcol = morph::Tools::getJetColor((double)I / (double)M.nFields);
-
-                vector<double> plt = M.NN[I];
-                double maxV = -1e7;
-                double minV = +1e7;
-                for(int i=0;i<M.nHexes;i++){
-                    if(M.C[i]==6){
-                        if(plt[i]>maxV){maxV = plt[i];}
-                        if(plt[i]<minV){minV = plt[i];}
-                    }
-                }
-                double scaleV = 1./(maxV-minV);
-                vector<double> P(M.nHexes,0.);
-                for (int i=0; i<M.nHexes; i++) {
-                    P[i] = fmin(fmax( ((plt[i])-minV)*scaleV,0.),1.);
-                    // M.X[i][2] = P[i];
-                }
-
-                double dh = fabs(M.H[0][0]-M.H[0][1])*0.5;
-
-                for(int i=0; i<M.nHexes; i++) {
-
-                    vector <double> cl = morph::Tools::getJetColor(P[i]);
-
-                    vector<double> p(6,0);
-                    p[0] = P[M.N[i][0]];
-                    p[1] = P[M.N[i][1]];
-                    p[2] = P[M.N[i][2]];
-                    p[3] = P[M.N[i][3]];
-                    p[4] = P[M.N[i][4]];
-                    p[5] = P[M.N[i][5]];
-                    vector<int> k1 = getEdges(P[i],p,0.5);
-
-
-                    //k=1;
-                    vector <double> cl2(3,0);
-                    if(I==0){
-                        cl2[0] = 1.;
-                    }
-
-                    for(unsigned int j=0;j<k1.size();j++){
-                        displays[0].drawHexSeg(M.H[0][i],M.H[1][i],0.01,dh,contourcol[0],contourcol[1],contourcol[2],k1[j]);
-                    }
-
-                }
-            }
-#endif
-            displays[0].redrawDisplay();
-
-            break;
-        }
-
-        case 8:
-        {
-            //W.logfile << W.processName << "@" << TIMEcs << ": 8=DISB" << endl;
-            displays[0].resetDisplay(fix,eye,rot);
-#if 0
-            double dh = fabs(M.H[0][0]-M.H[0][1])*0.5;
-            for (int i=0; i<M.nHexes; i++) {
-                double maxV = -1e7;
-                int maxI = 0;
-                double sel = 0.;
-                for(int I=0;I<M.nFields;I++){
-                    sel += M.NN[I][i];
-                    if(M.NN[I][i]>maxV){
-                        maxV = M.NN[I][i];
-                        maxI = I;
-                    }
-                }
-                sel = maxV/sel;
-                vector<double> cl = morph::Tools::getJetColor((double)maxI/(double)M.nFields);
-                cl[0] *= sel;
-                cl[1] *= sel;
-                cl[2] *= sel;
-
-                displays[0].drawHex(M.H[0][i],M.H[1][i],0.,dh,cl[0],cl[1],cl[2]);
-
-            }
-#endif
-            displays[0].redrawDisplay();
             break;
         }
 
