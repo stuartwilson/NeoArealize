@@ -43,6 +43,10 @@ for t in range(100000):
             w.stream('2,') # display image
             # w.stream('3,') #Save image to file
 
+    # Ask for a keystroke to move to the next image.
+    if t > 47:
+        a = raw_input ('Press key to advance to next step...')
+
 ''' # Uncomment to save
 for i,w in enumerate(worlds):
     w.stream('5,'+'logs/data'+str(i)+'.bin')

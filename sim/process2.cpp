@@ -5,12 +5,15 @@
 #include "morph/ReadCurves.h"
 #include "HexGrid.h"
 #include <iostream>
-//#include <ofstream>
 #include <fstream>
 #include <vector>
 #include <array>
 #include <iomanip>
 #include <cmath>
+
+#define DEBUG 1
+#define DBGSTREAM std::cout
+#include <morph/MorphDbg.h>
 
 using namespace std;
 
@@ -80,7 +83,7 @@ public:
     /*!
      * Our choice of dt.
      */
-    double dt = 0.1;
+    double dt = 0.0001;
 
     /*!
      * Compute half and sixth dt in constructor.
@@ -298,7 +301,7 @@ public:
         for (unsigned int i = 0; i<this->N; ++i) {
             for (unsigned int h = 0; h < this->nhex; ++h) {
                 // Note the model-specific choice of multiplier and offset here:
-                vv[i][h] = morph::Tools::randDouble() * 0.1 + 0.8;
+                vv[i][h] = morph::Tools::randDouble() *0.001;//* 0.1 + 0.8;
             }
         }
     }
@@ -309,7 +312,7 @@ public:
      */
     void init (vector<morph::Gdisplay>& displays) {
 
-        cout << "init() called" << endl;
+        DBG ("called");
 
         // Create a HexGrid
         this->hg = new HexGrid (0.01, 3);
@@ -434,6 +437,9 @@ public:
         // compute change of values between adjacent hexes.
         for (auto h : this->hg->hexen) {
             div_vf[h.vi] = 0.0;
+            if (h.d == 0.0) {
+                throw runtime_error ("h.d is unexpectedly 0.");
+            }
             // Find x gradient of vf[0]
             if (h.has_ne && h.has_nw) {
                 div_vf[h.vi] = (vf[0][h.ne->vi] - vf[0][h.nw->vi]) / ((double)h.d * 2.0);
@@ -477,19 +483,24 @@ public:
      */
     void spacegrad2D (vector<double>& f, array<vector<double>, 2>& gradf) {
 
-
         // Note - East is positive x; North is positive y.
         for (auto h : this->hg->hexen) {
 
             gradf[0][h.vi] = 0.0;
             gradf[1][h.vi] = 0.0;
-
+            if (h.vi == 0) {
+                double _d = (double)h.d;
+                DBG ("h.d: " << _d);
+            }
             // Find x gradient
             if (h.has_ne && h.has_nw) {
+                if (h.vi == 0) { DBG ("x case 1"); }
                 gradf[0][h.vi] = (f[h.ne->vi] - f[h.nw->vi]) / ((double)h.d * 2.0);
             } else if (h.has_ne) {
+                if (h.vi == 0) { DBG ("x case 2"); }
                 gradf[0][h.vi] = (f[h.ne->vi] - f[h.vi]) / (double)h.d;
             } else if (h.has_nw) {
+                if (h.vi == 0) { DBG ("x case 3"); }
                 gradf[0][h.vi] = (f[h.vi] - f[h.nw->vi]) / (double)h.d;
             } else {
                 // zero gradient in x direction as no neighbours in
@@ -500,35 +511,37 @@ public:
             // Find y gradient
             if (h.has_nnw && h.has_nne && h.has_nsw && h.has_nse) {
                 // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
+                if (h.vi == 0) {
+                    double _d = (double)h.getDv();
+                    double _td = (double)h.getTwoDv();
+                    DBG ("y case 1. getDv: " << _d << " getTwoDv: " << _td);
+                }
                 gradf[1][h.vi] = ((f[h.nne->vi] - f[h.nse->vi]) + (f[h.nnw->vi] - f[h.nsw->vi])) / (double)h.getDv();
 
             } else if (h.has_nnw && h.has_nne ) {
+                if (h.vi == 0) { DBG ("y case 2"); }
                 gradf[1][h.vi] = ( (f[h.nne->vi] + f[h.nnw->vi]) / 2.0 - f[h.vi]) / (double)h.getDv();
 
             } else if (h.has_nsw && h.has_nse) {
+                if (h.vi == 0) { DBG ("y case 3"); }
                 gradf[1][h.vi] = (f[h.vi] - (f[h.nse->vi] + f[h.nsw->vi]) / 2.0) / (double)h.getDv();
 
             } else if (h.has_nnw && h.has_nsw) {
+                if (h.vi == 0) { DBG ("y case 4"); }
                 gradf[1][h.vi] = (f[h.nnw->vi] - f[h.nsw->vi]) / (double)h.getTwoDv();
 
             } else if (h.has_nne && h.has_nse) {
+                if (h.vi == 0) { DBG ("y case 5"); }
                 gradf[1][h.vi] = (f[h.nne->vi] - f[h.nse->vi]) / (double)h.getTwoDv();
             } else {
                 // Leave grady at 0
             }
-        }
-    }
 
-#if 0
-    vector<double> getLaplacian (vector<double> Q, double dx) {
-        double overdxSquare = 1.0/(dx*dx);
-        vector<double> L(nhex, 0.0);
-        for (int i=0; i<nhex; i++) {
-            L[i] = (Q[N[i][0]] + Q[N[i][1]] + Q[N[i][2]] + Q[N[i][3]] + Q[N[i][4]] + Q[N[i][5]] - 6.0 * Q[i]) * overdxSquare;
+            if (h.vi == 0) {
+                DBG ("gradf[0/1][0]: " << gradf[0][0] << "," << gradf[1][0]);
+            }
         }
-        return L;
     }
-#endif
 
     /*!
      * Do a step through the model.
@@ -540,11 +553,12 @@ public:
         this->stepCount++;
 
         if (this->stepCount % 100 == 0) {
-            cout << "100 steps done..." << endl;
+            DBG ("100 steps done...");
         }
 
         // 1. Compute Karb2004 Eq 3. (coupling between connections made by each TC type)
         for (auto h : this->hg->hexen) {
+            n[h.vi] = 0; // whoops forgot this!
             for (unsigned int i=0; i<N; ++i) {
                 n[h.vi] += c[i][h.vi];
             }
@@ -564,21 +578,26 @@ public:
         // Runge-Kutta:
         for (unsigned int i=0; i<this->N; ++i) {
 
+            DBG2 ("alpha_c_beta_na["<<i<<"][0] = " << this->alpha_c_beta_na[i][0]);
+
             // Runge-Kutta integration for A
             vector<double> q(this->nhex, 0.0);
             this->compute_axonalbranchflux (a[i], i); // populates divJ[i]
+            DBG2 ("Computing divJ, divJ[0][0]: " << divJ[0][0]);
             vector<double> k1(this->nhex, 0.0);
             for (unsigned int h=0; h<this->nhex; ++h) {
                 k1[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 q[h] = this->a[i][h] + k1[h] * halfdt;
             }
+            DBG2 ("After RK stage 1, q[0]: " << q[0]);
 
             vector<double> k2(this->nhex, 0.0);
             this->compute_axonalbranchflux (q, i);
             for (unsigned int h=0; h<this->nhex; ++h) {
                 k2[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
-                q[h] = this->a[i][h] + k2[h] * halfdt;
+                q[h] = this->a[i][h] + k2[h] * halfdt; // Kaboom!
             }
+            DBG2 ("After RK stage 2, q[0]:" << q[0] << " from a["<<i<<"][0]:" << a[i][0] << " divj["<<i<<"][0]:" << divJ[i][0] << " k2[0]:" << k2[0]);
 
             vector<double> k3(this->nhex, 0.0);
             this->compute_axonalbranchflux (q, i);
@@ -586,16 +605,15 @@ public:
                 k3[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 q[h] = this->a[i][h] + k3[h] * dt;
             }
+            DBG2 ("After RK stage 3, q[0]: " << q[0]);
 
             vector<double> k4(this->nhex, 0.0);
             this->compute_axonalbranchflux (q, i);
             for (unsigned int h=0; h<this->nhex; ++h) {
                 k4[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 a[i][h] += (k1[h] + 2.0 * (k2[h] + k3[h]) + k4[h]) * sixthdt;
-                if (abs(a[i][h]) > 0) {
-                    cout << "a[i][h]>0 : " << a[i][h] << endl;
-                }
             }
+            DBG2 ("After RK stage 4, a[" << i << "][0]: " << a[i][0]);
         }
 
         // 3. Do integration of c
@@ -604,27 +622,33 @@ public:
             for (unsigned int h=0; h<nhex; h++) {
                 this->betaterm[i][h] = beta[i] * n[h] * pow (a[i][h], k);
             }
+            DBG2 ("betaterm[" << i << "][0]: " << betaterm[i][0]);
+
             // Runge-Kutta integration for C (or ci)
             vector<double> q(nhex,0.);
             vector<double> k1 = compute_dci_dt (c[i], i);
             for (unsigned int h=0; h<nhex; h++) {
                 q[h] = c[i][h] + k1[h] * halfdt;
             }
+            DBG2 ("After RK stage 1, q[0]: " << q[0]);
 
             vector<double> k2 = compute_dci_dt (q, i);
             for (unsigned int h=0; h<nhex; h++) {
                 q[h] = c[i][h] + k2[h] * halfdt;
             }
+            DBG2 ("After RK stage 2, q[0]: " << q[0]);
 
             vector<double> k3 = compute_dci_dt (q, i);
             for (unsigned int h=0; h<nhex; h++) {
                 q[h] = c[i][h] + k3[h] * dt;
             }
+            DBG2 ("After RK stage 3, q[0]: " << q[0]);
 
             vector<double> k4 = compute_dci_dt (q, i);
             for (unsigned int h=0; h<nhex; h++) {
                 c[i][h] += (k1[h]+2. * (k2[h] + k3[h]) + k4[h]) * sixthdt;
             }
+            DBG2 ("After RK stage 4, c["<<i<<"][0]: " << c[i][0]);
         }
     }
 
@@ -840,13 +864,20 @@ public:
 
         // Compute gradient of a_i(x)
         this->spacegrad2D (f, this->grad_a[i]);
-        // Compute J
+        if (i==0) {
+            DBG ("grad a: " << this->grad_a[i][0][0] << "," << this->grad_a[i][1][0]);
+            DBG ("f[0]: " << f[0]);
+        }
+        // Compute J. J seems to be first thing to blow up.
         for (unsigned int h = 0; h<this->nhex; ++h) {
-            this->J[i][0][h] = this->D * this->grad_a[i][0][h] - f[h] * this->chemo[i][0][h];
-            this->J[i][1][h] = this->D * this->grad_a[i][1][h] - f[h] * this->chemo[i][1][h];
+            this->J[i][0][h] = this->D * this->grad_a[i][0][h] ;//- f[h] * this->chemo[i][0][h];
+            this->J[i][1][h] = this->D * this->grad_a[i][1][h] ;//- f[h] * this->chemo[i][1][h];
         }
         // Compute divergence of J
         this->divergence (this->J[i], this->divJ[i]);
+        if (i==0) {
+            DBG ("J["<<i<<"][0/1][0]:" << J[i][0][0] << "," << J[i][1][0] << " and divJ[i][0]:" << divJ[i][0]);
+        }
     }
 
     /*!
@@ -867,10 +898,10 @@ public:
 
         double cosphi = (double) cos (phi);
         double sinphi = (double) sin (phi);
-        cout << "cosphi: " << cosphi << endl;
+        DBG ("cosphi: " << cosphi);
         // Get minimum x and maximum x in the rotated co-ordinate system.
         double x_min_ = this->hg->getXmin (phi);
-        cout << "x_min_: " << x_min_ << endl;
+        DBG ("x_min_: " << x_min_);
 
         for (auto h : this->hg->hexen) {
             // Rotate x, then offset by the minimum along that line
@@ -886,14 +917,14 @@ public:
      * for a long time.
      */
     void runExpressionDynamics (vector<morph::Gdisplay>& displays) {
-        for (unsigned int t=0; t<30000; ++t) { // 300000 matches Stuart's 1D Karbowski model
+        for (unsigned int t=0; t<3000; ++t) { // 300000 matches Stuart's 1D Karbowski model
             for (auto h : this->hg->hexen) {
                 emx[h.vi] += tau_emx * (-emx[h.vi] + eta_emx[h.vi] / (1. + w2 * fgf[h.vi] + v2 * pax[h.vi]));
                 pax[h.vi] += tau_pax * (-pax[h.vi] + eta_pax[h.vi] / (1. + v1 * emx[h.vi]));
                 fgf[h.vi] += tau_fgf * (-fgf[h.vi] + eta_fgf[h.vi] / (1. + w1 * emx[h.vi]));
             }
             if (t%1000 == 0) {
-                cout << "Plot for t=" << t << endl;
+                DBG ("Plot for t=" << t);
                 this->plotexpression (displays);
             }
         }
@@ -1170,29 +1201,8 @@ int main (int argc, char **argv)
         case 5: // *** SAVE ***
         {
             W.logfile << W.processName << "@" << TIMEcs << ": 5=SAVE" << endl;
-
             if (command.size() == 2) {
-
-                std::stringstream oFile; oFile << command[1];
                 //M.save (command[1].str());
-#if 0
-                ofstream outFile;
-                std::stringstream oFile; oFile << command[1];
-                outFile.open (oFile.str().c_str(), ios::out|ios::binary);
-
-                double n = (double)S.size();
-                double* N = &n;
-                outFile.write ((char*)N, sizeof(double));
-                for (unsigned int i=0; i<S.size(); i++) {
-                    double m = (double)S[i].size();
-                    double* M = &m;
-                    outFile.write ((char*)M, sizeof(double));
-                    for (unsigned int j=0; j<S[i].size(); j++) {
-                        outFile.write ((char*)S[i][j], sizeof(double));
-                    }
-                }
-                outFile.close();
-#endif
             } else {
                 W.logfile << "No output filename." << endl;
             }
@@ -1202,35 +1212,11 @@ int main (int argc, char **argv)
         case 6: // *** LOAD ***
         {
             W.logfile << W.processName << "@" << TIMEcs << ": 6=LOAD" << endl;
-#if 0
             if (command.size() == 2) {
-                double dummy;
-                ifstream inFile;
-                std::stringstream iFile;
-                iFile << command[1];
-                inFile.open (iFile.str().c_str(), ios::in|ios::binary);
-                inFile.read ((char*)&dummy, sizeof(double));
-                int I = (int)dummy;
-                if (I == static_cast<int>(S.size())) {
-                    for (int i=0; i<I; i++) {
-                        inFile.read ((char*)&dummy, sizeof(double));
-                        int J = (int)dummy;
-                        if (J == static_cast<int>(S[i].size())) {
-                            for (int j=0; j<J; j++) {
-                                inFile.read ((char*)S[i][j], sizeof(double));
-                            }
-                        } else {
-                            W.logfile << "Wrong dims I." << endl;
-                        }
-                    }
-                } else {
-                    W.logfile << "Wrong dims J." << endl;
-                }
-                inFile.close();
+                //M.load(command[1]);
             } else {
                 W.logfile << "No input filename." << endl;
             }
-#endif
             break;
         }
 
