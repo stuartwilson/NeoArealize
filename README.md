@@ -2,7 +2,17 @@
 
 A model of reaction-diffusion pattern formation in neocortex.
 
-To build:
+Pre-requisites:
+
+Build and install morphologica from:
+
+https://github.com/ABRG-Models/morphologica
+
+Make sure these packages are installed (Debian/Ubuntu example):
+
+sudo apt install python python-numpy xterm
+
+Now build:
 
 ```bash
 cd NeoArealize
@@ -16,5 +26,5 @@ cd ..
 To run:
 
 ```bash
-python sim.py
+python sim2.py
 ```
