@@ -476,6 +476,19 @@ public:
     }
 
     /*!
+     * Examine the value in each Hex of the hexgrid of the scalar
+     * field f. If abs(f[h]) exceeds the size of dangerThresh, then
+     * output debugging information.
+     */
+    void debug_values (vector<double>& f, double dangerThresh) {
+        for (auto h : this->hg->hexen) {
+            if (abs(f[h.vi]) > dangerThresh) {
+                DBG ("Blow-up threshold exceeded at Hex.vi=" << h.vi << ": " << f[h.vi]);
+            }
+        }
+    }
+
+    /*!
      * 2D spatial integration of the function f. Result placed in gradf.
      *
      * For each Hex, work out the gradient in x and y directions
@@ -614,6 +627,9 @@ public:
                 a[i][h] += (k1[h] + 2.0 * (k2[h] + k3[h]) + k4[h]) * sixthdt;
             }
             DBG2 ("After RK stage 4, a[" << i << "][0]: " << a[i][0]);
+
+            DBG("Debug a["<<i<<"]");
+            this->debug_values (a[i], 1e8);
         }
 
         // 3. Do integration of c
@@ -649,6 +665,9 @@ public:
                 c[i][h] += (k1[h]+2. * (k2[h] + k3[h]) + k4[h]) * sixthdt;
             }
             DBG2 ("After RK stage 4, c["<<i<<"][0]: " << c[i][0]);
+
+            DBG("Debug c["<<i<<"]");
+            this->debug_values (c[i], 1e8);
         }
     }
 
@@ -864,6 +883,12 @@ public:
 
         // Compute gradient of a_i(x)
         this->spacegrad2D (f, this->grad_a[i]);
+
+        DBG("Debug grad_a["<<i<<"][0]");
+        this->debug_values (grad_a[i][0], 1e8);
+        DBG("Debug grad_a["<<i<<"][1]");
+        this->debug_values (grad_a[i][0], 1e8);
+
         if (i==0) {
             DBG ("grad a: " << this->grad_a[i][0][0] << "," << this->grad_a[i][1][0]);
             DBG ("f[0]: " << f[0]);
@@ -875,6 +900,12 @@ public:
         }
         // Compute divergence of J
         this->divergence (this->J[i], this->divJ[i]);
+
+        DBG("Debug J["<<i<<"][0]");
+        this->debug_values (J[i][0], 1e8);
+        DBG("Debug J["<<i<<"][1]");
+        this->debug_values (J[i][1], 1e8);
+
         if (i==0) {
             DBG ("J["<<i<<"][0/1][0]:" << J[i][0][0] << "," << J[i][1][0] << " and divJ[i][0]:" << divJ[i][0]);
         }
