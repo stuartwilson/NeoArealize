@@ -8,7 +8,7 @@ class pTemp:
         portID = basePort
         while (portID<basePort+20*10):
             try:
-                cmd = 'xterm -e "./'+modelbinarypath+' '+name+' '+logFile+'.txt '+str(seed)+' '+str(portID)+'" &'
+                cmd = 'xterm -e "./'+modelbinarypath+' '+name+' '+logFile+'.txt '+str(seed)+' '+str(portID)+' | tee results.log" &'
                 os.system(cmd)
                 self.s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
                 self.s.bind(('127.0.0.1', portID))

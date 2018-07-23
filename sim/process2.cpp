@@ -483,7 +483,10 @@ public:
     void debug_values (vector<double>& f, double dangerThresh) {
         for (auto h : this->hg->hexen) {
             if (abs(f[h.vi]) > dangerThresh) {
-                DBG ("Blow-up threshold exceeded at Hex.vi=" << h.vi << ": " << f[h.vi]);
+                DBG ("Blow-up threshold exceeded at Hex.vi=" << h.vi << " ("<< h.ri <<","<< h.gi <<")" <<  ": " << f[h.vi]);
+                while (120) {
+                    usleep (1000000);
+                }
             }
         }
     }
@@ -501,19 +504,17 @@ public:
 
             gradf[0][h.vi] = 0.0;
             gradf[1][h.vi] = 0.0;
-            if (h.vi == 0) {
-                double _d = (double)h.d;
-                DBG ("h.d: " << _d);
-            }
+
+            DBG ("(h.ri,h.gi): (" << h.ri << "," << h.gi << ")");
             // Find x gradient
             if (h.has_ne && h.has_nw) {
-                if (h.vi == 0) { DBG ("x case 1"); }
+                DBG ("x case 1 f[h.ne]: " << f[h.ne->vi] << " - f[h.nw]" << f[h.nw->vi] << "/ h.d*2: " << (double)h.d * 2.0);
                 gradf[0][h.vi] = (f[h.ne->vi] - f[h.nw->vi]) / ((double)h.d * 2.0);
             } else if (h.has_ne) {
-                if (h.vi == 0) { DBG ("x case 2"); }
+                DBG ("x case 2 f[h.ne]: " << f[h.ne->vi] << " - f[h]" << f[h.vi] << "/ h.d: " << (double)h.d);
                 gradf[0][h.vi] = (f[h.ne->vi] - f[h.vi]) / (double)h.d;
             } else if (h.has_nw) {
-                if (h.vi == 0) { DBG ("x case 3"); }
+                DBG ("x case 3 f[h]: " << f[h.vi] << " - f[h.nw]" << f[h.nw->vi] << "/ h.d: " << (double)h.d);
                 gradf[0][h.vi] = (f[h.vi] - f[h.nw->vi]) / (double)h.d;
             } else {
                 // zero gradient in x direction as no neighbours in
@@ -885,7 +886,7 @@ public:
         this->spacegrad2D (f, this->grad_a[i]);
 
         DBG("Debug grad_a["<<i<<"][0]");
-        this->debug_values (grad_a[i][0], 1e8);
+        this->debug_values (grad_a[i][0], 1e1); // First blowup over 1e8, 1e7, 1e6, 1e4 (all for Hex 6129, (-39-12)). Also 1e2 (for Hex 6201, (-41,11)). 1e1: Hex 6202 (-42,-10) where its value hits -10.4.
         DBG("Debug grad_a["<<i<<"][1]");
         this->debug_values (grad_a[i][0], 1e8);
 
