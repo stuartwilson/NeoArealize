@@ -309,7 +309,7 @@ public:
      */
     void init (vector<morph::Gdisplay>& displays) {
 
-        cout << "init() called" << endl;
+//        cout << "init() called" << endl;
 
         // Create a HexGrid
         this->hg = new HexGrid (0.01, 3);
@@ -539,9 +539,9 @@ public:
 
         this->stepCount++;
 
-        if (this->stepCount % 100 == 0) {
-            cout << "100 steps done..." << endl;
-        }
+//        if (this->stepCount % 100 == 0) {
+//            cout << "100 steps done..." << endl;
+//        }
 
         // 1. Compute Karb2004 Eq 3. (coupling between connections made by each TC type)
         for (auto h : this->hg->hexen) {
@@ -592,9 +592,9 @@ public:
             for (unsigned int h=0; h<this->nhex; ++h) {
                 k4[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 a[i][h] += (k1[h] + 2.0 * (k2[h] + k3[h]) + k4[h]) * sixthdt;
-                if (abs(a[i][h]) > 0) {
-                    cout << "a[i][h]>0 : " << a[i][h] << endl;
-                }
+//                if (abs(a[i][h]) > 0) {
+//                    cout << "a[i][h]>0 : " << a[i][h] << endl;
+//                }
             }
         }
 
@@ -867,10 +867,10 @@ public:
 
         double cosphi = (double) cos (phi);
         double sinphi = (double) sin (phi);
-        cout << "cosphi: " << cosphi << endl;
+//        cout << "cosphi: " << cosphi << endl;
         // Get minimum x and maximum x in the rotated co-ordinate system.
         double x_min_ = this->hg->getXmin (phi);
-        cout << "x_min_: " << x_min_ << endl;
+//        cout << "x_min_: " << x_min_ << endl;
 
         for (auto h : this->hg->hexen) {
             // Rotate x, then offset by the minimum along that line
@@ -892,10 +892,10 @@ public:
                 pax[h.vi] += tau_pax * (-pax[h.vi] + eta_pax[h.vi] / (1. + v1 * emx[h.vi]));
                 fgf[h.vi] += tau_fgf * (-fgf[h.vi] + eta_fgf[h.vi] / (1. + w1 * emx[h.vi]));
             }
-            if (t%1000 == 0) {
-                cout << "Plot for t=" << t << endl;
-                this->plotexpression (displays);
-            }
+//            if (t%1000 == 0) {
+//                cout << "Plot for t=" << t << endl;
+///                this->plotexpression (displays);
+//            }
         }
     }
 
@@ -910,7 +910,7 @@ public:
             this->rhoC[h] = (kC/2.)*(1.+tanh((theta4-fgf[h])/sigmaC));
 
         }
-        this->plotchemo (displays);
+///        this->plotchemo (displays);
     }
 
     /*!
@@ -967,7 +967,7 @@ int main (int argc, char **argv)
     vector<double> eye(3, 0.0);
     eye[2] = -0.4;
     vector<double> rot(3, 0.0);
-
+#if 0
     displays.push_back (morph::Gdisplay (600, "emx", 0.0, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
@@ -1031,7 +1031,7 @@ int main (int argc, char **argv)
     displays.push_back (morph::Gdisplay (600, "c[4]", 0.0, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
-
+#endif
     // Instantiate the model object
     RD_2D_Karb M;
     try {

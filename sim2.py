@@ -33,15 +33,15 @@ for i,w in enumerate(worlds):
 '''
 
 # MAIN SIMULATION LOOP
-for t in range(100000):
+for t in range(1000):
 
     for i,w in enumerate(worlds):
         w.stream('1,')
 
-    for i,w in enumerate(worlds):
-        if(t%1==0):
-            w.stream('2,') # display image
-            # w.stream('3,') #Save image to file
+    #for i,w in enumerate(worlds):
+    #    if(t%1==0):
+    #        w.stream('2,') # display image
+    #        # w.stream('3,') #Save image to file
 
 ''' # Uncomment to save
 for i,w in enumerate(worlds):
