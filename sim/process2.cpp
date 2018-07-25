@@ -3,7 +3,7 @@
 #include "morph/display.h"
 #include "morph/tools.h"
 #include "morph/ReadCurves.h"
-#include "HexGrid.h"
+#include "morph/HexGrid.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -890,11 +890,7 @@ public:
         DBG("Debug grad_a["<<i<<"][1]");
         this->debug_values (grad_a[i][0], 1e8);
 
-        if (i==0) {
-            DBG ("grad a: " << this->grad_a[i][0][0] << "," << this->grad_a[i][1][0]);
-            DBG ("f[0]: " << f[0]);
-        }
-        // Compute J. J seems to be first thing to blow up.
+        // Compute J. J blows up if grad_a blows up.
         for (unsigned int h = 0; h<this->nhex; ++h) {
             this->J[i][0][h] = this->D * this->grad_a[i][0][h] ;//- f[h] * this->chemo[i][0][h];
             this->J[i][1][h] = this->D * this->grad_a[i][1][h] ;//- f[h] * this->chemo[i][1][h];
@@ -906,10 +902,6 @@ public:
         this->debug_values (J[i][0], 1e8);
         DBG("Debug J["<<i<<"][1]");
         this->debug_values (J[i][1], 1e8);
-
-        if (i==0) {
-            DBG ("J["<<i<<"][0/1][0]:" << J[i][0][0] << "," << J[i][1][0] << " and divJ[i][0]:" << divJ[i][0]);
-        }
     }
 
     /*!
