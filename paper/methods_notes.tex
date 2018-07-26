@@ -1,0 +1,329 @@
+% This is an example of using latex for a paper/report of specified
+% size/layout. It's useful if you want to provide a PDF that looks
+% like it was made in a normal word processor.
+
+% While writing, don't stop for errors
+\nonstopmode
+
+% Use the article doc class, with an 11 pt basic font size
+\documentclass[11pt, a4paper]{article}
+
+% Makes the main font Nimbus Roman, a Times New Roman lookalike:
+%\usepackage{mathptmx}% http://ctan.org/pkg/mathptmx
+% OR use this for proper Times New Roman (from msttcorefonts package
+% on Ubuntu). Use xelatex instead of pdflatex to compile:
+\usepackage{fontspec}
+\usepackage{xltxtra}
+\usepackage{xunicode}
+\defaultfontfeatures{Scale=MatchLowercase,Mapping=tex-text}
+\setmainfont{Times New Roman}
+
+% Set margins
+\usepackage[margin=2.5cm]{geometry}
+
+% Multilingual support
+\usepackage[english]{babel}
+
+% Nice mathematics
+\usepackage{amsmath}
+
+% Control over maketitle
+\usepackage{titling}
+
+% Section styling
+\usepackage{titlesec}
+
+% Ability to use colour in text
+\usepackage[usenames]{color}
+
+% For the \degree symbol
+\usepackage{gensymb}
+
+% Allow includegraphics and nice wrapped figures
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage[outercaption]{sidecap}
+
+% Set formats using titlesec
+\titleformat*{\section}{\bfseries\rmfamily}
+\titleformat*{\subsection}{\bfseries\itshape\rmfamily}
+
+% thetitle is the number of the section. This sets the distance from
+% the number to the section text.
+\titlelabel{\thetitle.\hskip0.3em\relax}
+
+% Set title spacing with titlesec, too.  The first {1.0ex plus .2ex
+% minus .7ex} sets the spacing above the section title. The second
+% {-1.0ex plus 0.2ex} sets the spacing the section title to the
+% paragraph.
+\titlespacing{\section}{0pc}{1.0ex plus .2ex minus .7ex}{-1.1ex plus 0.2ex}
+
+%% Trick to define a language alias and permit language = {en} in the .bib file.
+% From: http://tex.stackexchange.com/questions/199254/babel-define-language-synonym
+\usepackage{letltxmacro}
+\LetLtxMacro{\ORIGselectlanguage}{\selectlanguage}
+\makeatletter
+\DeclareRobustCommand{\selectlanguage}[1]{%
+  \@ifundefined{alias@\string#1}
+    {\ORIGselectlanguage{#1}}
+    {\begingroup\edef\x{\endgroup
+       \noexpand\ORIGselectlanguage{\@nameuse{alias@#1}}}\x}%
+}
+\newcommand{\definelanguagealias}[2]{%
+  \@namedef{alias@#1}{#2}%
+}
+\makeatother
+\definelanguagealias{en}{english}
+\definelanguagealias{eng}{english}
+%% End language alias trick
+
+%% Any aliases here
+\newcommand{\myalias}{Some text or something}
+% Emphasis and bold.
+\newcommand{\e}{\emph}
+\newcommand{\mycite}[1]{\cite{#1}}
+%% END aliases
+
+% Custom font defs
+% fontsize is \fontsize{fontsize}{linespacesize}
+\def\authorListFont{\fontsize{11}{11} }
+\def\corrAuthorFont{\fontsize{10}{10} }
+\def\affiliationListFont{\fontsize{11}{11}\itshape }
+\def\titleFont{\fontsize{14}{11} \bfseries }
+\def\textFont{\fontsize{11}{11} }
+\def\sectionHdrFont{\fontsize{11}{11}\bfseries}
+\def\bibFont{\fontsize{10}{10} }
+\def\captionFont{\fontsize{10}{10} }
+
+% Caption font size to be small.
+\usepackage[font=small,labelfont=bf]{caption}
+
+% Make a dot for the dot product, call it vcdot for 'vector calculus
+% dot'. Bigger than \cdot, smaller than \bullet.
+\makeatletter
+\newcommand*\vcdot{\mathpalette\vcdot@{.35}}
+\newcommand*\vcdot@[2]{\mathbin{\vcenter{\hbox{\scalebox{#2}{$\m@th#1\bullet$}}}}}
+\makeatother
+
+\def\firstAuthorLast{James}
+
+% Affiliations
+\def\Address{\\
+\affiliationListFont Adaptive Behaviour Research Group, Department of Psychology,
+  The University of Sheffield, Sheffield, UK \\
+}
+
+% The Corresponding Author should be marked with an asterisk. Provide
+% the exact contact address (this time including street name and city
+% zip code) and email of the corresponding author
+\def\corrAuthor{Seb James}
+\def\corrAddress{Department of Psychology, The University of Sheffield,
+  Western Bank, Sheffield, S10 2TP, UK}
+\def\corrEmail{seb.james@sheffield.ac.uk}
+
+% Figure out the font for the author list..
+\def\Authors{\authorListFont Sebastian James\\[1 ex]  \Address \\
+  \corrAuthorFont $^{*}$ Correspondence: \corrEmail}
+
+% No page numbering please
+\pagenumbering{gobble}
+
+% A trick to get the bibliography to show up with 1. 2. etc in place
+% of [1], [2] etc.:
+\makeatletter
+\renewcommand\@biblabel[1]{#1.}
+\makeatother
+
+% reduce separation between bibliography items if not using natbib:
+\let\OLDthebibliography\thebibliography
+\renewcommand\thebibliography[1]{
+  \OLDthebibliography{#1}
+  \setlength{\parskip}{0pt}
+  \setlength{\itemsep}{0pt plus 0.3ex}
+}
+
+% Set correct font for bibliography (doesn't work yet)
+%\renewcommand*{\bibfont}{\bibFont}
+
+% No paragraph indenting to match the VPH format
+\setlength{\parindent}{0pt}
+
+% Skip a line after paragraphs
+\setlength{\parskip}{0.5\baselineskip}
+\onecolumn
+
+% titling definitions
+\pretitle{\begin{center}\titleFont}
+\posttitle{\par\end{center}\vskip 0em}
+\preauthor{ % Fonts are set within \Authors
+        \vspace{-1.1cm} % Bring authors up towards title
+        \begin{center}
+        \begin{tabular}[t]{c}
+}
+\postauthor{\end{tabular}\par\end{center}}
+
+% Define title, empty date and authors
+\title {
+  Karbowski model in 2-D
+}
+\date{} % No date please
+\author{\Authors}
+
+%% END OF PREAMBLE
+
+\begin{document}
+
+\setlength{\droptitle}{-1.8cm} % move the title up a suitable amount
+\maketitle
+
+\vspace{-1.8cm} % HACK bring the introduction up towards the title. It
+                % would be better to do this with titling in \maketitle
+
+\section{Introduction}
+
+The maths of Eqs.~2 and 4 in ``Model of the Early Development of
+Thalamo-Cortical Connections and Area Patterning via Signaling
+Molecules'', Karbowski \& Ermentrout, 2004~\cite{karbowski_model_2004}.
+
+\section{One dimensional system}
+
+Equations 1-4 of \cite{karbowski_model_2004} is the full set of
+differential equations describing their system:
+
+\begin{equation}
+\frac{\partial c_i(x, t)}{\partial t} = -\alpha_i c_i(x, t) + \beta_i
+n(x, t)[a_i(x, t)]^k
+\end{equation}
+%
+\begin{equation}
+\frac{\partial a_i(x, t)}{\partial t} = \frac{\partial J_i(x, t)}{\partial
+x} + \alpha_i c_i(x, t) - \beta_i n(x, t)[a_i(x, t)]^k
+\end{equation}
+%
+\begin{equation}
+n(x, t) + \sum_{i=1}^{N} c_i(x, t) = 1
+\end{equation}
+%
+with the flux current
+%
+\begin{equation}
+J_i(x, t) = D \frac{\partial a_i(x, t)}{\partial x} - a_i
+\bigg(\gamma_A_i \frac{\partial \rho_A}{\partial x} +\gamma_B_i \frac{\partial \rho_B}{\partial x} + \gamma_C_i \frac{\partial \rho_C}{\partial x} \bigg)
+\end{equation}
+
+Note that (unlike in the original paper) I have been explicit about
+the time dependence of the various fields.
+
+\section{Two dimensional system}
+
+Extending the system above to two spatial dimensions changes $x$ into
+a two-dimensional $\mathbf{x}$ and changes the flux term ($J_i(\mathbf{x})$):
+%
+\begin{equation}
+\frac{\partial c_i(\mathbf{x},t)}{\partial t} = -\alpha_i c_i((\mathbf{x},t) + \beta_i n(\mathbf{x},t)
+[a_i(\mathbf{x},t)]^k
+\end{equation}
+%
+\begin{equation}
+\frac{\partial a_i(\mathbf{x},t)}{\partial t} = \nabla\vcdot\mathbf{J}_i(\mathbf{x},t) + \alpha_i c_i(\mathbf{x},t) i \beta_i n(\mathbf{x},t)
+[a_i(x)]^k
+\end{equation}
+%
+\begin{equation}
+n(\mathbf{x},t) + \sum_{i=1}^{N} c_i(\mathbf{x}, t) = 1
+\end{equation}
+%
+with the flux current
+%
+\begin{equation}
+\mathbf{J}_i(\mathbf{x},t) = D \nabla a_i(\mathbf{x},t) - a_i
+\big(\gamma_A_i \nabla\rho_A +\gamma_B_i \nabla\rho_B + \nabla\rho_C \big)
+\end{equation}
+
+In order to compute $\nabla\vcdot\mathbf{J}_i(\mathbf{x},t)$, I need to do
+a little work. First, I point out that
+%
+\begin{equation}
+\big(\gamma_A_i \nabla\rho_A +\gamma_B_i \nabla\rho_B
++ \nabla\rho_C \big)
+\end{equation}
+%
+is a static vector field; once computed at the start of the
+simulation, it is time-invariant. Call it $\mathbf{g}(\mathbf{x})$, so that
+%
+\begin{equation}
+\mathbf{J}_i(\mathbf{x},t) = D \nabla a_i(\mathbf{x},t) - a_i \mathbf{g}(\mathbf{x})
+\end{equation}
+%
+Now I can apply some vector calculus identities to work out the divergence
+of $\mathbf{J}_i(\mathbf{x})$:
+%
+\begin{equation}
+\nabla\vcdot\mathbf{J}_i(\mathbf{x}) = \nabla\vcdot\bigg(D \nabla
+a_i(\mathbf{x},t) - a_i \mathbf{g}(\mathbf{x}) \bigg)
+\end{equation}
+%
+and because the divergence operator is distributive,
+%
+\begin{equation}
+\nabla\vcdot\mathbf{J}_i(\mathbf{x}) = \nabla\vcdot\big(D \nabla
+a_i(\mathbf{x},t)\big) - \nabla\vcdot\big(a_i \mathbf{g}(\mathbf{x})\big)
+\end{equation}
+%
+$D$ is a constant and applying the vector calculus product rule
+identity to $\nabla\vcdot\big(a_i \mathbf{g}(\mathbf{x})\big)$:
+%
+\begin{equation}
+%
+\nabla\vcdot\mathbf{J}_i(\mathbf{x}) =
+D \nabla\vcdot\nabla a_i(\mathbf{x},t)
+-
+\big(
+a_i(\mathbf{x},t)\nabla\vcdot\mathbf{g}(\mathbf{x})
++
+\mathbf{g}(\mathbf{x})\vcdot\nabla a_i(\mathbf{x},t)
+\big)
+%
+\end{equation}
+%
+which is
+%
+\begin{equation}
+%
+\nabla\vcdot\mathbf{J}_i(\mathbf{x}) =
+D \nabla\vcdot\nabla a_i(\mathbf{x},t)
+-
+a_i(\mathbf{x},t)\nabla\vcdot\mathbf{g}(\mathbf{x})
+-
+\mathbf{g}(\mathbf{x})\vcdot\nabla a_i(\mathbf{x},t)
+%
+\end{equation}
+%
+having three elements to compute; the Laplacian of
+$a_i(\mathbf{x},t)$, a time-independent modulator of
+$a_i(\mathbf{x},t)$ [because $\nabla\vcdot\mathbf{g}(\mathbf{x})$ is a
+time-independent static field] and the dot product of the gradient of
+$a_i(\mathbf{x},t)$ and the static vector field $\mathbf{g}(\mathbf{x})$.
+
+I'm now ready to implement this in the class \texttt{RD\_2D\_Karb} in \texttt{process.cpp}.
+
+\selectlanguage{English}
+\bibliographystyle{abbrvnotitle}
+% The bibliography NoTremor.bib is the one exported from Zotero. It
+% may be necessary to run my UTF-8 cleanup script, bbl_utf8_to_latex.sh
+%%\bibliography{NoTremor}
+%
+% It produces this:
+\begin{thebibliography}{1}
+
+\bibitem{karbowski_model_2004}
+J.~Karbowski and G.~Ermentrout.
+\newblock {\em Journal of Computational Neuroscience}, 17(3):347--363, Nov.
+  2004.
+
+\end{thebibliography}
+
+%%% Upload the *bib file along with the *tex file and PDF on
+%%% submission if the bibliography is not in the main *tex file
+
+\end{document}
