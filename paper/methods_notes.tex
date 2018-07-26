@@ -208,16 +208,16 @@ with the flux current
 %
 \begin{equation}
 J_i(x, t) = D \frac{\partial a_i(x, t)}{\partial x} - a_i
-\bigg(\gamma_A_i \frac{\partial \rho_A}{\partial x} +\gamma_B_i \frac{\partial \rho_B}{\partial x} + \gamma_C_i \frac{\partial \rho_C}{\partial x} \bigg)
+\bigg(\gamma_{Ai} \frac{\partial \rho_A}{\partial x} +\gamma_{Bi} \frac{\partial \rho_B}{\partial x} + \gamma_{Ci} \frac{\partial \rho_C}{\partial x} \bigg)
 \end{equation}
 
 Note that (unlike in the original paper) I have been explicit about
-the time dependence of the various fields.
+the time dependence of the state variables $a_i$, $c_i$, $J_i$ and $n$.
 
 \section{Two dimensional system}
 
 Extending the system above to two spatial dimensions changes $x$ into
-a two-dimensional $\mathbf{x}$ and changes the flux term ($J_i(\mathbf{x})$):
+a two-dimensional $\mathbf{x}$ and changes the flux term, $J_i(x)$ as follows:
 %
 \begin{equation}
 \frac{\partial c_i(\mathbf{x},t)}{\partial t} = -\alpha_i c_i((\mathbf{x},t) + \beta_i n(\mathbf{x},t)
@@ -225,8 +225,8 @@ a two-dimensional $\mathbf{x}$ and changes the flux term ($J_i(\mathbf{x})$):
 \end{equation}
 %
 \begin{equation}
-\frac{\partial a_i(\mathbf{x},t)}{\partial t} = \nabla\vcdot\mathbf{J}_i(\mathbf{x},t) + \alpha_i c_i(\mathbf{x},t) i \beta_i n(\mathbf{x},t)
-[a_i(x)]^k
+\frac{\partial a_i(\mathbf{x},t)}{\partial t} = \nabla\vcdot\mathbf{J}_i(\mathbf{x},t) + \alpha_i c_i(\mathbf{x},t) - \beta_i n(\mathbf{x},t)
+[a_i(\mathbf{x}, t)]^k
 \end{equation}
 %
 \begin{equation}
@@ -237,15 +237,15 @@ with the flux current
 %
 \begin{equation}
 \mathbf{J}_i(\mathbf{x},t) = D \nabla a_i(\mathbf{x},t) - a_i
-\big(\gamma_A_i \nabla\rho_A +\gamma_B_i \nabla\rho_B + \nabla\rho_C \big)
+\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B + \gamma_{Ci} \nabla\rho_C \big)
 \end{equation}
 
 In order to compute $\nabla\vcdot\mathbf{J}_i(\mathbf{x},t)$, I need to do
 a little work. First, I point out that
 %
 \begin{equation}
-\big(\gamma_A_i \nabla\rho_A +\gamma_B_i \nabla\rho_B
-+ \nabla\rho_C \big)
+\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B
++ \gamma_{Ci} \nabla\rho_C \big)
 \end{equation}
 %
 is a static vector field; once computed at the start of the
