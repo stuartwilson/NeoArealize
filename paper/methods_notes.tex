@@ -286,7 +286,9 @@ a_i(\mathbf{x},t)\nabla\vcdot\mathbf{g}(\mathbf{x})
 %
 \end{equation}
 %
-which is
+(to prove $\nabla\vcdot D\nabla a = D \nabla\vcdot\nabla a$, apply the
+product rule and note that $\nabla D = 0$ for constant $D$). Expanding
+the brackets we have:
 %
 \begin{equation}
 %
@@ -299,13 +301,23 @@ a_i(\mathbf{x},t)\nabla\vcdot\mathbf{g}(\mathbf{x})
 %
 \end{equation}
 %
-having three elements to compute; the Laplacian of
-$a_i(\mathbf{x},t)$, a time-independent modulator of
+which has three elements to compute: the Laplacian of
+$a_i(\mathbf{x},t)$; a time-independent modulator of
 $a_i(\mathbf{x},t)$ [because $\nabla\vcdot\mathbf{g}(\mathbf{x})$ is a
-time-independent static field] and the dot product of the gradient of
-$a_i(\mathbf{x},t)$ and the static vector field $\mathbf{g}(\mathbf{x})$.
+time-independent static field]; and the dot product of the static
+vector field $\mathbf{g}(\mathbf{x})$ and the gradient of
+$a_i(\mathbf{x},t)$.
 
-I'm now ready to implement this in the class \texttt{RD\_2D\_Karb} in \texttt{process.cpp}.
+I'm now ready to implement this in the class \texttt{RD\_2D\_Karb}
+in \texttt{process.cpp}. Each of the divergences can be
+simplified by means of Gauss's Theorem, which states that (in
+a two-dimensional system) the area integral of the divergence of a
+vector field $\mathbf{f}$ is equal to the integral around the boundary
+of the field dotted with the normal to the boundary:
+%
+\begin{equation}
+\int_A \nabla\vcdot\mathbf{f}\;dxdy = \int_c \mathbf{f}\vcdot d\hat{\mathbf{n}}
+\end{equation}
 
 \selectlanguage{English}
 \bibliographystyle{abbrvnotitle}
