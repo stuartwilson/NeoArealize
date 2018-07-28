@@ -49,6 +49,7 @@ vector<double> compute_axonalbranchflux (vector<double> a,
                                          double dx,
                                          vector<double> addon)
 {
+    // Boundary Condition on a is applied in here?
     int n = a.size();
     double dJdX;
     vector<double> output(n,0.);
