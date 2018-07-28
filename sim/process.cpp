@@ -26,6 +26,15 @@ using morph::ReadCurves;
 class RD_2D_Karb
 {
 public:
+
+    /*!
+     * Constants
+     */
+    //@{
+    //! Square root of 3 over 2
+    const double R3_OVER_2 = 0.866025404;
+    //@}
+
     /*!
      * Holds the number of hexes in the populated HexGrid
      */
@@ -413,10 +422,7 @@ public:
         // Having computed gradients, build this->chemo; has to be done once only.
         for (unsigned int i=0; i<this->N; ++i) {
             for (unsigned int h=0; h<this->nhex; ++h) {
-                // Here I'm adding, but does Ji have components?
-                // Revisit this question. Yes, it does, but then we
-                // compute the divergence of J to get
-                // da_i/dt|diffusion
+                // this->chemo is what I called g(x) in my methods writeup.
                 this->chemo[i][0][h] = this->gammaA[i] * this->grad_rhoA[0][h]
                     + this->gammaB[i] * this->grad_rhoB[0][h]
                     + this->gammaC[i] * this->grad_rhoC[0][h];
@@ -596,7 +602,7 @@ public:
 
             // Runge-Kutta integration for A
             vector<double> q(this->nhex, 0.0);
-            this->compute_axonalbranchflux (a[i], i); // populates divJ[i]
+            this->compute_divJ (a[i], i); // populates divJ[i]
             DBG2 ("Computing divJ, divJ[0][0]: " << divJ[0][0]);
             vector<double> k1(this->nhex, 0.0);
             for (unsigned int h=0; h<this->nhex; ++h) {
@@ -606,7 +612,7 @@ public:
             DBG2 ("After RK stage 1, q[0]: " << q[0]);
 
             vector<double> k2(this->nhex, 0.0);
-            this->compute_axonalbranchflux (q, i);
+            this->compute_divJ (q, i);
             for (unsigned int h=0; h<this->nhex; ++h) {
                 k2[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 q[h] = this->a[i][h] + k2[h] * halfdt; // Kaboom!
@@ -614,7 +620,7 @@ public:
             DBG2 ("After RK stage 2, q[0]:" << q[0] << " from a["<<i<<"][0]:" << a[i][0] << " divj["<<i<<"][0]:" << divJ[i][0] << " k2[0]:" << k2[0]);
 
             vector<double> k3(this->nhex, 0.0);
-            this->compute_axonalbranchflux (q, i);
+            this->compute_divJ (q, i);
             for (unsigned int h=0; h<this->nhex; ++h) {
                 k3[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 q[h] = this->a[i][h] + k3[h] * dt;
@@ -622,7 +628,7 @@ public:
             DBG2 ("After RK stage 3, q[0]: " << q[0]);
 
             vector<double> k4(this->nhex, 0.0);
-            this->compute_axonalbranchflux (q, i);
+            this->compute_divJ (q, i);
             for (unsigned int h=0; h<this->nhex; ++h) {
                 k4[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 a[i][h] += (k1[h] + 2.0 * (k2[h] + k3[h]) + k4[h]) * sixthdt;
@@ -676,6 +682,7 @@ public:
      * Plot the system on @a disps
      */
     void plot (vector<morph::Gdisplay>& disps) {
+        DBG ("Called");
         this->plot_f (this->a, disps, 6);
         this->plot_f (this->c, disps, 11);
     }
@@ -876,14 +883,65 @@ public:
     /*!
      * Computes the "flux of axonal branches" term, J_i(x) (Eq 4)
      *
-     * Inputs: this->chemo, f (which is this->a[i] or a q in the RK
+     * Inputs: this->chemo, fa (which is this->a[i] or a q in the RK
      * algorithm), this->D, @a i, the TC type.  Helper functions:
      * spacegrad2D(), divergence().  Output: this->divJ
      */
-    void compute_axonalbranchflux (vector<double>& f, unsigned int i) {
+    void compute_divJ (vector<double>& fa, unsigned int i) {
 
+        // Three terms to compute; see Eq. 14 in methods_notes.pdf
+
+        // Compute gradient of a_i(x), for use computing the third term, below.
+        this->spacegrad2D (fa, this->grad_a[i]);
+
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == true) {
+                // Force divJ to 0 on boundary
+                this->divJ[i][h.vi] = 0;
+
+            } else {
+                // 1. The D Del^2 a_i term
+                // Compute the sum around the neighbours
+                double thesum = -6 * fa[h.vi];
+                thesum += fa[h.ne->vi];
+                thesum += fa[h.nne->vi];
+                thesum += fa[h.nnw->vi];
+                thesum += fa[h.nw->vi];
+                thesum += fa[h.nsw->vi];
+                thesum += fa[h.nse->vi];
+                // Multiply bu 2D/3d^2
+                double d = this->hg->getd();
+                double term1 = (this->D * 2) / (3 * d * d) * thesum;
+
+                // 2. The a div(g) term. Two sums for this.
+                double term2 = 0.0;
+                // First sum
+                term2 += /*cos (0)*/ (this->chemo[i][0][h.ne->vi] + this->chemo[i][0][h.vi]);
+                term2 += /*cos (60)*/ 0.5 * (this->chemo[i][0][h.nne->vi] + this->chemo[i][0][h.vi]);
+                term2 -= /*cos (120)*/ 0.5 * (this->chemo[i][0][h.nnw->vi] + this->chemo[i][0][h.vi]);
+                term2 -= /*cos (180)*/ (this->chemo[i][0][h.nw->vi] + this->chemo[i][0][h.vi]);
+                term2 -= /*cos (240)*/ 0.5 * (this->chemo[i][0][h.nsw->vi] + this->chemo[i][0][h.vi]);
+                term2 += /*cos (300)*/ 0.5 * (this->chemo[i][0][h.nse->vi] + this->chemo[i][0][h.vi]);
+                // 2nd sum
+                //term2 += sin (0) * (this->chemo[i][1][h.ne->vi] + this->chemo[i][1][h.vi]);
+                term2 += /*sin (60)*/ R3_OVER_2 * (this->chemo[i][1][h.nne->vi] + this->chemo[i][1][h.vi]);
+                term2 += /*sin (120)*/ R3_OVER_2 * (this->chemo[i][1][h.nnw->vi] + this->chemo[i][1][h.vi]);
+                //term2 += sin (180) * (this->chemo[i][1][h.nw->vi] + this->chemo[i][1][h.vi]);
+                term2 -= /*sin (240)*/ R3_OVER_2 * (this->chemo[i][1][h.nsw->vi] + this->chemo[i][1][h.vi]);
+                term2 -= /*sin (300)*/ R3_OVER_2 * (this->chemo[i][1][h.nse->vi] + this->chemo[i][1][h.vi]);
+                term2 /= 2.0;
+                term2 *= fa[h.vi];
+
+                // 3. Third term is this->chemo . grad a_i
+                double term3 = this->chemo[i][0][h.vi] * this->grad_a[i][0][h.vi]
+                    + this->chemo[i][1][h.vi] * this->grad_a[i][1][h.vi];
+
+                this->divJ[i][h.vi] = term1 + term2 + term3;
+            }
+        }
+#ifdef OLD_WAY
         // Compute gradient of a_i(x)
-        this->spacegrad2D (f, this->grad_a[i]);
+        this->spacegrad2D (fa, this->grad_a[i]);
 
         DBG("Debug grad_a["<<i<<"][0]");
         this->debug_values (grad_a[i][0], 1e1); // First blowup over 1e8, 1e7, 1e6, 1e4 (all for Hex 6129, (-39-12)). Also 1e2 (for Hex 6201, (-41,11)). 1e1: Hex 6202 (-42,-10) where its value hits -10.4.
@@ -902,6 +960,7 @@ public:
         this->debug_values (J[i][0], 1e8);
         DBG("Debug J["<<i<<"][1]");
         this->debug_values (J[i][1], 1e8);
+#endif
     }
 
     /*!

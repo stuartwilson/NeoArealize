@@ -22,10 +22,10 @@ class pTemp:
         print 'Connection:', self.addr
 
     def stream(self,c):
-		self.data = self.conn.recv(BUFFERSIZE)
-		if self.data:
-			self.conn.send(str(c))
-		#time.sleep(0.005)
+        self.data = self.conn.recv(BUFFERSIZE)
+        if self.data:
+            self.conn.send(str(c))
+	    #time.sleep(0.005)
 
     def out(self):
         return self.data.split(',')[:-1]
@@ -70,10 +70,10 @@ class pBase:
         print 'Connection:', self.addr
 
     def stream(self,c):
-		self.data = self.conn.recv(BUFFERSIZE)#note has been 10000
-		if self.data:
-			self.conn.send(str(c))
-		#time.sleep(0.005)
+        self.data = self.conn.recv(BUFFERSIZE)#note has been 10000
+        if self.data:
+            self.conn.send(str(c))
+            #time.sleep(0.005)
 
     def quit(self):
         self.conn.close()
