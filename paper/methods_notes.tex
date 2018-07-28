@@ -78,7 +78,7 @@
 %% End language alias trick
 
 %% Any aliases here
-\newcommand{\myalias}{Some text or something}
+\newcommand{\mb}[1]{\mathbf{#1}} % this won't work?
 % Emphasis and bold.
 \newcommand{\e}{\emph}
 \newcommand{\mycite}[1]{\cite{#1}}
@@ -217,30 +217,30 @@ the time dependence of the state variables $a_i$, $c_i$, $J_i$ and $n$.
 \section{Two dimensional system}
 
 Extending the system above to two spatial dimensions changes $x$ into
-a two-dimensional $\mathbf{x}$ and changes the flux term, $J_i(x)$ as follows:
+a two-dimensional $\mb{x}$ and changes the flux term, $J_i(x)$ as follows:
 %
 \begin{equation} \label{eq:Karb2D_dc}
-\frac{\partial c_i(\mathbf{x},t)}{\partial t} = -\alpha_i c_i((\mathbf{x},t) + \beta_i n(\mathbf{x},t)
-[a_i(\mathbf{x},t)]^k
+\frac{\partial c_i(\mb{x},t)}{\partial t} = -\alpha_i c_i((\mb{x},t) + \beta_i n(\mb{x},t)
+[a_i(\mb{x},t)]^k
 \end{equation}
 %
 \begin{equation} \label{eq:Karb2D_da}
-\frac{\partial a_i(\mathbf{x},t)}{\partial t} = \nabla\vcdot\mathbf{J}_i(\mathbf{x},t) + \alpha_i c_i(\mathbf{x},t) - \beta_i n(\mathbf{x},t)
-[a_i(\mathbf{x}, t)]^k
+\frac{\partial a_i(\mb{x},t)}{\partial t} = \nabla\vcdot\mb{J}_i(\mb{x},t) + \alpha_i c_i(\mb{x},t) - \beta_i n(\mb{x},t)
+[a_i(\mb{x}, t)]^k
 \end{equation}
 %
 \begin{equation} \label{eq:Karb2D_conserve}
-n(\mathbf{x},t) + \sum_{i=1}^{N} c_i(\mathbf{x}, t) = 1
+n(\mb{x},t) + \sum_{i=1}^{N} c_i(\mb{x}, t) = 1
 \end{equation}
 %
 with the flux current
 %
 \begin{equation} \label{eq:Karb2D_J}
-\mathbf{J}_i(\mathbf{x},t) = D \nabla a_i(\mathbf{x},t) - a_i
+\mb{J}_i(\mb{x},t) = D \nabla a_i(\mb{x},t) - a_i
 \big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B + \gamma_{Ci} \nabla\rho_C \big)
 \end{equation}
 
-In order to compute $\nabla\vcdot\mathbf{J}_i(\mathbf{x},t)$, I need to do
+In order to compute $\nabla\vcdot\mb{J}_i(\mb{x},t)$, I need to do
 a little work. First, I point out that
 %
 \begin{equation}
@@ -249,39 +249,39 @@ a little work. First, I point out that
 \end{equation}
 %
 is a static vector field; once computed at the start of the
-simulation, it is time-invariant. Call it $\mathbf{g}(\mathbf{x})$, so that
+simulation, it is time-invariant. Call it $\mb{g}(\mb{x})$, so that
 %
 \begin{equation}
-\mathbf{J}_i(\mathbf{x},t) = D \nabla a_i(\mathbf{x},t) - a_i \mathbf{g}(\mathbf{x})
+\mb{J}_i(\mb{x},t) = D \nabla a_i(\mb{x},t) - a_i \mb{g}(\mb{x})
 \end{equation}
 %
 Now I can apply some vector calculus identities to work out the divergence
-of $\mathbf{J}_i(\mathbf{x})$:
+of $\mb{J}_i(\mb{x})$:
 %
 \begin{equation}
-\nabla\vcdot\mathbf{J}_i(\mathbf{x}) = \nabla\vcdot\bigg(D \nabla
-a_i(\mathbf{x},t) - a_i \mathbf{g}(\mathbf{x}) \bigg)
+\nabla\vcdot\mb{J}_i(\mb{x}) = \nabla\vcdot\bigg(D \nabla
+a_i(\mb{x},t) - a_i \mb{g}(\mb{x}) \bigg)
 \end{equation}
 %
 and because the divergence operator is distributive,
 %
 \begin{equation}
-\nabla\vcdot\mathbf{J}_i(\mathbf{x}) = \nabla\vcdot\big(D \nabla
-a_i(\mathbf{x},t)\big) - \nabla\vcdot\big(a_i \mathbf{g}(\mathbf{x})\big)
+\nabla\vcdot\mb{J}_i(\mb{x}) = \nabla\vcdot\big(D \nabla
+a_i(\mb{x},t)\big) - \nabla\vcdot\big(a_i \mb{g}(\mb{x})\big)
 \end{equation}
 %
 $D$ is a constant and applying the vector calculus product rule
-identity to $\nabla\vcdot\big(a_i \mathbf{g}(\mathbf{x})\big)$:
+identity to $\nabla\vcdot\big(a_i \mb{g}(\mb{x})\big)$:
 %
 \begin{equation}
 %
-\nabla\vcdot\mathbf{J}_i(\mathbf{x}) =
-D \nabla\vcdot\nabla a_i(\mathbf{x},t)
+\nabla\vcdot\mb{J}_i(\mb{x}) =
+D \nabla\vcdot\nabla a_i(\mb{x},t)
 -
 \big(
-a_i(\mathbf{x},t)\nabla\vcdot\mathbf{g}(\mathbf{x})
+a_i(\mb{x},t)\nabla\vcdot\mb{g}(\mb{x})
 +
-\mathbf{g}(\mathbf{x})\vcdot\nabla a_i(\mathbf{x},t)
+\mb{g}(\mb{x})\vcdot\nabla a_i(\mb{x},t)
 \big)
 %
 \end{equation}
@@ -292,31 +292,31 @@ the brackets we have:
 %
 \begin{equation}
 %
-\nabla\vcdot\mathbf{J}_i(\mathbf{x}) =
-D \nabla\vcdot\nabla a_i(\mathbf{x},t)
+\nabla\vcdot\mb{J}_i(\mb{x}) =
+D \nabla\vcdot\nabla a_i(\mb{x},t)
 -
-a_i(\mathbf{x},t)\nabla\vcdot\mathbf{g}(\mathbf{x})
+a_i(\mb{x},t)\nabla\vcdot\mb{g}(\mb{x})
 -
-\mathbf{g}(\mathbf{x})\vcdot\nabla a_i(\mathbf{x},t)
+\mb{g}(\mb{x})\vcdot\nabla a_i(\mb{x},t)
 %
 \end{equation}
 %
 which has three elements to compute: the Laplacian of
-$a_i(\mathbf{x},t)$; a time-independent modulator of
-$a_i(\mathbf{x},t)$ [because $\nabla\vcdot\mathbf{g}(\mathbf{x})$ is a
+$a_i(\mb{x},t)$; a time-independent modulator of
+$a_i(\mb{x},t)$ [because $\nabla\vcdot\mb{g}(\mb{x})$ is a
 time-independent static field]; and the dot product of the static
-vector field $\mathbf{g}(\mathbf{x})$ and the gradient of
-$a_i(\mathbf{x},t)$.
+vector field $\mb{g}(\mb{x})$ and the gradient of
+$a_i(\mb{x},t)$.
 
 I'm now ready to implement this in the class \texttt{RD\_2D\_Karb}
 in \texttt{process.cpp}. Each of the divergences can be
 simplified by means of Gauss's Theorem, which states that (in
 a two-dimensional system) the area integral of the divergence of a
-vector field $\mathbf{f}$ is equal to the integral around the boundary
+vector field $\mb{f}$ is equal to the integral around the boundary
 of the field dotted with the normal to the boundary:
 %
 \begin{equation}
-\int_A \nabla\vcdot\mathbf{f}\;dxdy = \int_c \mathbf{f}\vcdot d\hat{\mathbf{n}}
+\int_A \nabla\vcdot\mb{f}\;dxdy = \int_c \mb{f}\vcdot d\hat{\mb{n}}
 \end{equation}
 
 See, for example \cite{george_b._arfken_mathematical_1995},
@@ -325,55 +325,88 @@ Sect.~1.11, p 58.
 Reference \cite{lee_hexagonal_2014} presents an application of Gauss's
 Theorem to the solution of Poisson's equation, which contains a
 Laplacian term, on an hexagonal grid. The computation of our
-Laplacian, $D \nabla\vcdot\nabla a_i(\mathbf{x},t)$, integrated across
-the area of one hexagon located at position $\mathbf{p}_0$, with
-neighbours at positions $\mathbf{p}_1$--$\mathbf{p}_6$ is:
+Laplacian, $D \nabla\vcdot\nabla a_i(\mb{x},t)$, integrated across
+the area of one hexagon located at position $\mb{p}_0$, with
+neighbours at positions $\mb{p}_1$--$\mb{p}_6$ is:
 %
 \begin{equation}
-D \nabla\vcdot\nabla a_i(\mathbf{p}_0,t) = D\frac{2}{3d^2} \sum_{j=1}^{6}\big(a_i(\mathbf{p}_j) - a_i(\mathbf{p}_0)\big)
+D \nabla\vcdot\nabla a_i(\mb{p}_0,t) = D\frac{2}{3d^2} \sum_{j=1}^{6}\big(a_i(\mb{p}_j) - a_i(\mb{p}_0)\big)
 \end{equation}
 %
 where $d$ is the centre-to-centre distance between hexes in the
 grid. Applying Gauss's Theorem again, the computation of
-$a_i(\mathbf{p}_0,t)\nabla\vcdot\mathbf{g}(\mathbf{p}_0)$ becomes:
+$a_i(\mb{p}_0,t)\nabla\vcdot\mb{g}(\mb{p}_0)$ becomes:
 %
 \begin{equation}
 \begin{split}
-\int_A a_i\nabla\vcdot\mathbf{g}\;dxdy & = \int_c \mathbf{g}\vcdot d\hat{\mathbf{n}} \\
-& \approx a_i(\mathbf{p}_0,t) \sum_{j=1}^{6} \frac{\mathbf{g}_j + \mathbf{g}_0}{2}\vcdot d\hat{\mathbf{n}} \\
-& = a_i(\mathbf{p}_0,t) \bigg( \sum_{j=1}^{6} \frac{\mathbf{g}_j^x + \mathbf{g}_0^x}{2} \vcdot d\hat{\mathbf{n}} +  \sum_{j=1}^{6} \frac{\mathbf{g}_j^y + \mathbf{g}_0^y}{2} \vcdot d\hat{\mathbf{n}} \bigg) \\
-& = a_i(\mathbf{p}_0,t) \bigg( \sum_{j=1}^{6} \frac{\mathbf{g}_j^x + \mathbf{g}_0^x}{2} \cos (60\times(j-1)) +  \sum_{j=1}^{6} \frac{\mathbf{g}_j^y + \mathbf{g}_0^y}{2} \sin (60\times(j-1)) \bigg) \\
+\int_A a_i\nabla\vcdot\mb{g}\;dxdy & = \int_c \mb{g}\vcdot d\hat{\mathbf{n}} \\
+& \approx a_i(\mb{p}_0,t) \sum_{j=1}^{6} \frac{\mb{g}_j + \mb{g}_0}{2}\vcdot d\hat{\mathbf{n}} \\
+& = a_i(\mb{p}_0,t) \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \vcdot d\hat{\mathbf{n}} +  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \vcdot d\hat{\mathbf{n}} \bigg) \\
+& = a_i(\mb{p}_0,t) \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \cos (60\times(j-1)) +  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \sin (60\times(j-1)) \bigg) \\
 \end{split}
 \end{equation}
 %
 The final expression is suitable for a numerical computation. Lastly,
-the final term in the expression for $\mathbf{J}_i(\mathbf{x})$ is the
-scalar product of two vector fields which can be carried out like this:
-
-(Either my existing approach for computing x and y components of the
-gradient of a field, then do the usual scalar product in Cartesian
-coordinates, OR do something nice, like finding gradient in the three
-principle directions and summing up until I get the scalar product.
+the final term in the expression for $\mb{J}_i(\mb{x})$ is the
+scalar product of two vector fields which I'll carry out simply with
+Cartesian $x$ and $y$ components - so I'll re-use my spacegrad2D
+function to find $\nabla a_i$.
 
 \section{Boundary Conditions}
 
 We wish to implement no-flux boundary conditions on the equation
-system specified by Eqs.~\ref{eq:Karb2D_dc}-\ref{eq:Karb2D_J}.
+system specified by Eqs.~\ref{eq:Karb2D_dc}-\ref{eq:Karb2D_J} to
+ensure that neither axonal branches, nor the number of thalamocortical
+connections changes across the boundary. This is equivalent to stating
+that the flux of axonal branches is zero at the boundary
+\begin{equation}
+\mb{J}_i(\mb{x}, t) \bigg\rvert_{boundary} = 0
+\end{equation}
+From Eq.~\ref{eq:Karb2D_J}:
+\begin{equation}
+\mb{J}_i(\mb{x},t)\bigg\rvert_{boundary} = \Big[ D \nabla a_i(\mb{x},t) - a_i
+\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B
++ \gamma_{Ci} \nabla\rho_C \big) \Big]  \bigg\rvert_{boundary}
+ = 0
+\end{equation}
 
-The key to this is to ensure that the
+The question is, how to ensure this? Can I set the value of $a_i$ in a
+ghost cell so that
 
-This can be achieved by creating `ghost hexes' outside the boundary,
-and fixing their values such that
-$\nabla\vcdot\mathbf{J}_i(\mathbf{x}) = 0$.
+\begin{equation}
+D \nabla a_i(\mb{x},t)\bigg\rvert_{boundary} =  a_i
+\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B
++ \gamma_{Ci} \nabla\rho_C \big)\bigg\rvert_{boundary}
+\end{equation}
 
-
+%
+% BIBLIOGRAPHY
+%
 \selectlanguage{English}
 \bibliographystyle{abbrvnotitle}
 % The bibliography NoTremor.bib is the one exported from Zotero. It
 % may be necessary to run my UTF-8 cleanup script, bbl_utf8_to_latex.sh
-\bibliography{NoTremor}
+%%\bibliography{NoTremor}
 %
 % It produces this:
+\begin{thebibliography}{1}
+
+\bibitem{george_b._arfken_mathematical_1995}
+{George B. Arfken} and H.~J. Weber.
+\newblock {\em Mathematical {Methods} for {Physicists}}.
+\newblock Academic Press, fourth edition edition, 1995.
+
+\bibitem{karbowski_model_2004}
+J.~Karbowski and G.~Ermentrout.
+\newblock {\em Journal of Computational Neuroscience}, 17(3):347--363, Nov.
+  2004.
+
+\bibitem{lee_hexagonal_2014}
+D.~Lee, H.~Tien, C.~Luo, et~al.
+\newblock {\em International Journal of Computer Mathematics},
+  91(9):1986--2009, Sept. 2014.
+
+\end{thebibliography}
 
 %%% Upload the *bib file along with the *tex file and PDF on
 %%% submission if the bibliography is not in the main *tex file
