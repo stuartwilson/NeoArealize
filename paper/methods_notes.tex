@@ -359,7 +359,7 @@ system specified by Eqs.~\ref{eq:Karb2D_dc}-\ref{eq:Karb2D_J} to
 ensure that neither axonal branches, nor the number of thalamocortical
 connections changes across the boundary. This is equivalent to stating
 that the flux of axonal branches is zero at the boundary
-\begin{equation}
+\begin{equation}\label{eq:idealbc}
 \mb{J}_i(\mb{x}, t) \bigg\rvert_{boundary} = 0
 \end{equation}
 From Eq.~\ref{eq:Karb2D_J}:
@@ -371,7 +371,7 @@ From Eq.~\ref{eq:Karb2D_J}:
 \end{equation}
 
 The question is, how to ensure this? Can I set the value of $a_i$ in a
-ghost cell so that
+ghost cell so that:
 
 \begin{equation}
 D \nabla a_i(\mb{x},t)\bigg\rvert_{boundary} =  a_i
@@ -379,6 +379,10 @@ D \nabla a_i(\mb{x},t)\bigg\rvert_{boundary} =  a_i
 + \gamma_{Ci} \nabla\rho_C \big)\bigg\rvert_{boundary}
 \end{equation}
 
+is true? Alternatively, just brute-force the boundary hexes to have
+$\nabla\vcdot\mb{J}_i(\mb{x}) = 0$ at all times, although this isn't
+quite the same as the stated boundary condition in the paper, which is
+that stated in Eq.~\ref{eq:idealbc}.
 %
 % BIBLIOGRAPHY
 %
