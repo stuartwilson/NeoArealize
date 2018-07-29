@@ -11,7 +11,7 @@ import numpy as np
 basePort = 8000
 #worlds = [P.pTemp('build/sim/process2','world00','logs/log00',1,basePort+0),
 #          P.pTemp('build/sim/process2','world01','logs/log01',2,basePort+1)]
-worlds = [P.pTemp('build/sim/process2','world00','logs/log00',1,basePort+0)]
+worlds = [P.pTemp('build/sim/process','world00','logs/log00',1,basePort+0)]
 
 # These are the diffusion constants
 Dn = np.array([200.,10.])
@@ -44,8 +44,8 @@ for t in range(100000):
             # w.stream('3,') #Save image to file
 
     # Ask for a keystroke to move to the next image.
-    if t > 47:
-        a = raw_input ('Press key to advance to next step...')
+    #if t > 47:
+    #    a = raw_input ('Press key to advance to next step...')
 
 ''' # Uncomment to save
 for i,w in enumerate(worlds):
