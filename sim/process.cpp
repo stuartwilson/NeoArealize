@@ -159,8 +159,8 @@ public:
     double Afgf = 0.9;
 
     double Chiemx = 2.0;//0.094; //25.6;
-    double Chipax = 2.2;//0.1;  //27.3;
-    double Chifgf = 2.1;//0.098; //26.4
+    double Chipax = 2.5;//0.1;  //27.3;
+    double Chifgf = 2.25;//0.098; //26.4
 
     double v1 = 2.6;
     double v2 = 2.7;
@@ -315,7 +315,7 @@ public:
         for (unsigned int i = 0; i<this->N; ++i) {
             for (unsigned int h = 0; h < this->nhex; ++h) {
                 // Note the model-specific choice of multiplier and offset here:
-                vv[i][h] = morph::Tools::randDouble() *0.001;//* 0.1 + 0.8;
+                vv[i][h] = morph::Tools::randDouble() * 0.1 + 0.8;
             }
         }
     }
@@ -378,23 +378,24 @@ public:
         this->noiseify_vector_vector (this->a);
 
         // Populate parameters
-        this->gammaA[0] =  1.6;
-        this->gammaA[1] = -0.4;
-        this->gammaA[2] = -2.21;
-        this->gammaA[3] = -2.1;
-        this->gammaA[4] = -2.45;
+        double gammagain = 20.0;
+        this->gammaA[0] =  1.6 * gammagain;
+        this->gammaA[1] = -0.4 * gammagain;
+        this->gammaA[2] = -2.21 * gammagain;
+        this->gammaA[3] = -2.1 * gammagain;
+        this->gammaA[4] = -2.45 * gammagain;
 
-        this->gammaB[0] = -0.6;
-        this->gammaB[1] = -0.5;
-        this->gammaB[2] =  0.4;
-        this->gammaB[3] = -0.5;
-        this->gammaB[4] = -1.0;
+        this->gammaB[0] = -0.6 * gammagain;
+        this->gammaB[1] = -0.5 * gammagain;
+        this->gammaB[2] =  0.4 * gammagain;
+        this->gammaB[3] = -0.5 * gammagain;
+        this->gammaB[4] = -1.0 * gammagain;
 
-        this->gammaC[0] = -2.9;
-        this->gammaC[1] = -2.5;
-        this->gammaC[2] = -2.23;
-        this->gammaC[3] = -0.6;
-        this->gammaC[4] =  1.7;
+        this->gammaC[0] = -2.9 * gammagain;
+        this->gammaC[1] = -2.5 * gammagain;
+        this->gammaC[2] = -2.23 * gammagain;
+        this->gammaC[3] = -0.6 * gammagain;
+        this->gammaC[4] =  1.7 * gammagain;
 
         this->alpha[0] = 1;
         this->alpha[1] = 1;
@@ -894,7 +895,11 @@ public:
      * spacegrad2D(), divergence().  Output: this->divJ
      */
     void compute_divJ (vector<double>& fa, unsigned int i) {
+
+// Both stable with dt = 0.0001;
 #define VECTOR_CALCULUS_EXPANSION_METHOD 1
+//#define NAIVE_METHOD_WITH_BOUNDARY_TESTING 1
+
 #ifdef VECTOR_CALCULUS_EXPANSION_METHOD
         // Three terms to compute; see Eq. 14 in methods_notes.pdf
 
@@ -996,10 +1001,10 @@ public:
 
         double cosphi = (double) cos (phi);
         double sinphi = (double) sin (phi);
-        DBG ("cosphi: " << cosphi);
+        DBG2 ("cosphi: " << cosphi);
         // Get minimum x and maximum x in the rotated co-ordinate system.
         double x_min_ = this->hg->getXmin (phi);
-        DBG ("x_min_: " << x_min_);
+        DBG2 ("x_min_: " << x_min_);
 
         for (auto h : this->hg->hexen) {
             // Rotate x, then offset by the minimum along that line
@@ -1015,7 +1020,7 @@ public:
      * for a long time.
      */
     void runExpressionDynamics (vector<morph::Gdisplay>& displays) {
-        for (unsigned int t=0; t<3000; ++t) { // 300000 matches Stuart's 1D Karbowski model
+        for (unsigned int t=0; t<100000; ++t) { // 300000 matches Stuart's 1D Karbowski model
             for (auto h : this->hg->hexen) {
                 emx[h.vi] += tau_emx * (-emx[h.vi] + eta_emx[h.vi] / (1. + w2 * fgf[h.vi] + v2 * pax[h.vi]));
                 pax[h.vi] += tau_pax * (-pax[h.vi] + eta_pax[h.vi] / (1. + v1 * emx[h.vi]));
