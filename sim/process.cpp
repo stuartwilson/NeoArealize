@@ -71,7 +71,7 @@ public:
      * Contains the chemo-attractant modifiers which are applied to
      * a_i(x,t) in Eq 4.
      */
-    vector<array<vector<double>, 2> > chemo;
+    vector<array<vector<double>, 2> > g;
 
     /*!
      * n(x,t) variable from the Karb2004 paper.
@@ -240,6 +240,11 @@ public:
      */
     vector<vector<double> > alpha_c_beta_na;
 
+    /*!
+     * Track the number of computational steps that we've carried
+     * out. Only to show a message saying "100 steps done...", but
+     * that's reason enough.
+     */
     unsigned int stepCount = 0;
 
     /*!
@@ -366,7 +371,7 @@ public:
 
         // Resize grad_a and other vector-array-vectors
         this->resize_vector_array_vector (this->grad_a);
-        this->resize_vector_array_vector (this->chemo);
+        this->resize_vector_array_vector (this->g);
         this->resize_vector_array_vector (this->J);
 
         // Initialise a with noise
@@ -419,14 +424,14 @@ public:
         this->spacegrad2D (this->rhoB, this->grad_rhoB);
         this->spacegrad2D (this->rhoC, this->grad_rhoC);
 
-        // Having computed gradients, build this->chemo; has to be done once only.
+        // Having computed gradients, build this->g; has to be done once only.
         for (unsigned int i=0; i<this->N; ++i) {
             for (unsigned int h=0; h<this->nhex; ++h) {
-                // this->chemo is what I called g(x) in my methods writeup.
-                this->chemo[i][0][h] = this->gammaA[i] * this->grad_rhoA[0][h]
+                // this->g is what I called g(x) in my methods writeup.
+                this->g[i][0][h] = this->gammaA[i] * this->grad_rhoA[0][h]
                     + this->gammaB[i] * this->grad_rhoB[0][h]
                     + this->gammaC[i] * this->grad_rhoC[0][h];
-                this->chemo[i][1][h] = this->gammaA[i] * this->grad_rhoA[1][h]
+                this->g[i][1][h] = this->gammaA[i] * this->grad_rhoA[1][h]
                     + this->gammaB[i] * this->grad_rhoB[1][h]
                     + this->gammaC[i] * this->grad_rhoC[1][h];
             }
@@ -511,16 +516,16 @@ public:
             gradf[0][h.vi] = 0.0;
             gradf[1][h.vi] = 0.0;
 
-            DBG ("(h.ri,h.gi): (" << h.ri << "," << h.gi << ")");
+            DBG2 ("(h.ri,h.gi): (" << h.ri << "," << h.gi << ")");
             // Find x gradient
             if (h.has_ne && h.has_nw) {
-                DBG ("x case 1 f[h.ne]: " << f[h.ne->vi] << " - f[h.nw]" << f[h.nw->vi] << "/ h.d*2: " << (double)h.d * 2.0);
+                DBG2 ("x case 1 f[h.ne]: " << f[h.ne->vi] << " - f[h.nw]" << f[h.nw->vi] << "/ h.d*2: " << (double)h.d * 2.0);
                 gradf[0][h.vi] = (f[h.ne->vi] - f[h.nw->vi]) / ((double)h.d * 2.0);
             } else if (h.has_ne) {
-                DBG ("x case 2 f[h.ne]: " << f[h.ne->vi] << " - f[h]" << f[h.vi] << "/ h.d: " << (double)h.d);
+                DBG2 ("x case 2 f[h.ne]: " << f[h.ne->vi] << " - f[h]" << f[h.vi] << "/ h.d: " << (double)h.d);
                 gradf[0][h.vi] = (f[h.ne->vi] - f[h.vi]) / (double)h.d;
             } else if (h.has_nw) {
-                DBG ("x case 3 f[h]: " << f[h.vi] << " - f[h.nw]" << f[h.nw->vi] << "/ h.d: " << (double)h.d);
+                DBG2 ("x case 3 f[h]: " << f[h.vi] << " - f[h.nw]" << f[h.nw->vi] << "/ h.d: " << (double)h.d);
                 gradf[0][h.vi] = (f[h.vi] - f[h.nw->vi]) / (double)h.d;
             } else {
                 // zero gradient in x direction as no neighbours in
@@ -531,35 +536,37 @@ public:
             // Find y gradient
             if (h.has_nnw && h.has_nne && h.has_nsw && h.has_nse) {
                 // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
+#ifdef DEBUG2
                 if (h.vi == 0) {
                     double _d = (double)h.getDv();
                     double _td = (double)h.getTwoDv();
-                    DBG ("y case 1. getDv: " << _d << " getTwoDv: " << _td);
+                    DBG2 ("y case 1. getDv: " << _d << " getTwoDv: " << _td);
                 }
+#endif
                 gradf[1][h.vi] = ((f[h.nne->vi] - f[h.nse->vi]) + (f[h.nnw->vi] - f[h.nsw->vi])) / (double)h.getDv();
 
             } else if (h.has_nnw && h.has_nne ) {
-                if (h.vi == 0) { DBG ("y case 2"); }
+                //if (h.vi == 0) { DBG ("y case 2"); }
                 gradf[1][h.vi] = ( (f[h.nne->vi] + f[h.nnw->vi]) / 2.0 - f[h.vi]) / (double)h.getDv();
 
             } else if (h.has_nsw && h.has_nse) {
-                if (h.vi == 0) { DBG ("y case 3"); }
+                //if (h.vi == 0) { DBG ("y case 3"); }
                 gradf[1][h.vi] = (f[h.vi] - (f[h.nse->vi] + f[h.nsw->vi]) / 2.0) / (double)h.getDv();
 
             } else if (h.has_nnw && h.has_nsw) {
-                if (h.vi == 0) { DBG ("y case 4"); }
+                //if (h.vi == 0) { DBG ("y case 4"); }
                 gradf[1][h.vi] = (f[h.nnw->vi] - f[h.nsw->vi]) / (double)h.getTwoDv();
 
             } else if (h.has_nne && h.has_nse) {
-                if (h.vi == 0) { DBG ("y case 5"); }
+                //if (h.vi == 0) { DBG ("y case 5"); }
                 gradf[1][h.vi] = (f[h.nne->vi] - f[h.nse->vi]) / (double)h.getTwoDv();
             } else {
                 // Leave grady at 0
             }
 
-            if (h.vi == 0) {
-                DBG ("gradf[0/1][0]: " << gradf[0][0] << "," << gradf[1][0]);
-            }
+            //if (h.vi == 0) {
+            //    DBG ("gradf[0/1][0]: " << gradf[0][0] << "," << gradf[1][0]);
+            //}
         }
     }
 
@@ -573,7 +580,7 @@ public:
         this->stepCount++;
 
         if (this->stepCount % 100 == 0) {
-            DBG ("100 steps done...");
+            DBG ("System computed " << this->stepCount << " times so far...");
         }
 
         // 1. Compute Karb2004 Eq 3. (coupling between connections made by each TC type)
@@ -635,8 +642,8 @@ public:
             }
             DBG2 ("After RK stage 4, a[" << i << "][0]: " << a[i][0]);
 
-            DBG("Debug a["<<i<<"]");
-            this->debug_values (a[i], 1e8);
+            DBG2("Debug a["<<i<<"]");
+            //this->debug_values (a[i], 1e8);
         }
 
         // 3. Do integration of c
@@ -673,8 +680,8 @@ public:
             }
             DBG2 ("After RK stage 4, c["<<i<<"][0]: " << c[i][0]);
 
-            DBG("Debug c["<<i<<"]");
-            this->debug_values (c[i], 1e8);
+            DBG2("Debug c["<<i<<"]");
+            //this->debug_values (c[i], 1e8);
         }
     }
 
@@ -682,7 +689,6 @@ public:
      * Plot the system on @a disps
      */
     void plot (vector<morph::Gdisplay>& disps) {
-        DBG ("Called");
         this->plot_f (this->a, disps, 6);
         this->plot_f (this->c, disps, 11);
     }
@@ -883,12 +889,13 @@ public:
     /*!
      * Computes the "flux of axonal branches" term, J_i(x) (Eq 4)
      *
-     * Inputs: this->chemo, fa (which is this->a[i] or a q in the RK
+     * Inputs: this->g, fa (which is this->a[i] or a q in the RK
      * algorithm), this->D, @a i, the TC type.  Helper functions:
      * spacegrad2D(), divergence().  Output: this->divJ
      */
     void compute_divJ (vector<double>& fa, unsigned int i) {
-
+#define VECTOR_CALCULUS_EXPANSION_METHOD 1
+#ifdef VECTOR_CALCULUS_EXPANSION_METHOD
         // Three terms to compute; see Eq. 14 in methods_notes.pdf
 
         // Compute gradient of a_i(x), for use computing the third term, below.
@@ -916,50 +923,58 @@ public:
                 // 2. The a div(g) term. Two sums for this.
                 double term2 = 0.0;
                 // First sum
-                term2 += /*cos (0)*/ (this->chemo[i][0][h.ne->vi] + this->chemo[i][0][h.vi]);
-                term2 += /*cos (60)*/ 0.5 * (this->chemo[i][0][h.nne->vi] + this->chemo[i][0][h.vi]);
-                term2 -= /*cos (120)*/ 0.5 * (this->chemo[i][0][h.nnw->vi] + this->chemo[i][0][h.vi]);
-                term2 -= /*cos (180)*/ (this->chemo[i][0][h.nw->vi] + this->chemo[i][0][h.vi]);
-                term2 -= /*cos (240)*/ 0.5 * (this->chemo[i][0][h.nsw->vi] + this->chemo[i][0][h.vi]);
-                term2 += /*cos (300)*/ 0.5 * (this->chemo[i][0][h.nse->vi] + this->chemo[i][0][h.vi]);
+                term2 += /*cos (0)*/ (this->g[i][0][h.ne->vi] + this->g[i][0][h.vi]);
+                term2 += /*cos (60)*/ 0.5 * (this->g[i][0][h.nne->vi] + this->g[i][0][h.vi]);
+                term2 -= /*cos (120)*/ 0.5 * (this->g[i][0][h.nnw->vi] + this->g[i][0][h.vi]);
+                term2 -= /*cos (180)*/ (this->g[i][0][h.nw->vi] + this->g[i][0][h.vi]);
+                term2 -= /*cos (240)*/ 0.5 * (this->g[i][0][h.nsw->vi] + this->g[i][0][h.vi]);
+                term2 += /*cos (300)*/ 0.5 * (this->g[i][0][h.nse->vi] + this->g[i][0][h.vi]);
                 // 2nd sum
-                //term2 += sin (0) * (this->chemo[i][1][h.ne->vi] + this->chemo[i][1][h.vi]);
-                term2 += /*sin (60)*/ R3_OVER_2 * (this->chemo[i][1][h.nne->vi] + this->chemo[i][1][h.vi]);
-                term2 += /*sin (120)*/ R3_OVER_2 * (this->chemo[i][1][h.nnw->vi] + this->chemo[i][1][h.vi]);
-                //term2 += sin (180) * (this->chemo[i][1][h.nw->vi] + this->chemo[i][1][h.vi]);
-                term2 -= /*sin (240)*/ R3_OVER_2 * (this->chemo[i][1][h.nsw->vi] + this->chemo[i][1][h.vi]);
-                term2 -= /*sin (300)*/ R3_OVER_2 * (this->chemo[i][1][h.nse->vi] + this->chemo[i][1][h.vi]);
+                //term2 += sin (0) * (this->g[i][1][h.ne->vi] + this->g[i][1][h.vi]);
+                term2 += /*sin (60)*/ R3_OVER_2 * (this->g[i][1][h.nne->vi] + this->g[i][1][h.vi]);
+                term2 += /*sin (120)*/ R3_OVER_2 * (this->g[i][1][h.nnw->vi] + this->g[i][1][h.vi]);
+                //term2 += sin (180) * (this->g[i][1][h.nw->vi] + this->g[i][1][h.vi]);
+                term2 -= /*sin (240)*/ R3_OVER_2 * (this->g[i][1][h.nsw->vi] + this->g[i][1][h.vi]);
+                term2 -= /*sin (300)*/ R3_OVER_2 * (this->g[i][1][h.nse->vi] + this->g[i][1][h.vi]);
                 term2 /= 2.0;
                 term2 *= fa[h.vi];
 
-                // 3. Third term is this->chemo . grad a_i
-                double term3 = this->chemo[i][0][h.vi] * this->grad_a[i][0][h.vi]
-                    + this->chemo[i][1][h.vi] * this->grad_a[i][1][h.vi];
+                // 3. Third term is this->g . grad a_i
+                double term3 = this->g[i][0][h.vi] * this->grad_a[i][0][h.vi]
+                    + this->g[i][1][h.vi] * this->grad_a[i][1][h.vi];
 
                 this->divJ[i][h.vi] = term1 + term2 + term3;
             }
         }
-#ifdef OLD_WAY
+#endif
+
+#ifdef NAIVE_METHOD_WITH_BOUNDARY_TESTING
         // Compute gradient of a_i(x)
         this->spacegrad2D (fa, this->grad_a[i]);
-
-        DBG("Debug grad_a["<<i<<"][0]");
-        this->debug_values (grad_a[i][0], 1e1); // First blowup over 1e8, 1e7, 1e6, 1e4 (all for Hex 6129, (-39-12)). Also 1e2 (for Hex 6201, (-41,11)). 1e1: Hex 6202 (-42,-10) where its value hits -10.4.
-        DBG("Debug grad_a["<<i<<"][1]");
-        this->debug_values (grad_a[i][0], 1e8);
-
         // Compute J. J blows up if grad_a blows up.
-        for (unsigned int h = 0; h<this->nhex; ++h) {
-            this->J[i][0][h] = this->D * this->grad_a[i][0][h] ;//- f[h] * this->chemo[i][0][h];
-            this->J[i][1][h] = this->D * this->grad_a[i][1][h] ;//- f[h] * this->chemo[i][1][h];
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == true) {
+                // Force divJ to 0 on boundary
+                this->divJ[i][h.vi] = 0;
+            } else {
+                this->J[i][0][h.vi] = this->D * this->grad_a[i][0][h.vi] - fa[h.vi] * this->g[i][0][h.vi];
+                this->J[i][1][h.vi] = this->D * this->grad_a[i][1][h.vi] - fa[h.vi] * this->g[i][1][h.vi];
+            }
         }
         // Compute divergence of J
         this->divergence (this->J[i], this->divJ[i]);
+#endif
 
-        DBG("Debug J["<<i<<"][0]");
-        this->debug_values (J[i][0], 1e8);
-        DBG("Debug J["<<i<<"][1]");
-        this->debug_values (J[i][1], 1e8);
+#ifdef OLD_WAY
+        // Compute gradient of a_i(x)
+        this->spacegrad2D (fa, this->grad_a[i]);
+        // Compute J. J blows up if grad_a blows up.
+        for (unsigned int h = 0; h<this->nhex; ++h) {
+            this->J[i][0][h] = this->D * this->grad_a[i][0][h] - fa[h] * this->g[i][0][h];
+            this->J[i][1][h] = this->D * this->grad_a[i][1][h] - fa[h] * this->g[i][1][h];
+        }
+        // Compute divergence of J
+        this->divergence (this->J[i], this->divJ[i]);
 #endif
     }
 
