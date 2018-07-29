@@ -2,15 +2,12 @@
 add_executable(process process.cpp)
 target_link_libraries(process ${MORPH_LDFLAGS})
 
-add_executable(process2 process2.cpp HexGrid.cpp)
-target_link_libraries(process2 ${MORPH_LDFLAGS})
-
 # Can't make float versions of models until libmorphologica is correctly templated/overloaded for double and float.
 #add_executable(processf processf.cpp)
 #target_link_libraries(processf ${MORPH_LDFLAGS})
 
-add_executable(testhexgrid testhexgrid.cpp HexGrid.cpp)
+add_executable(testhexgrid testhexgrid.cpp)
 target_link_libraries(testhexgrid ${MORPH_LDFLAGS})
 
-add_executable(testhexgrid2 testhexgrid2.cpp HexGrid.cpp)
+add_executable(testhexgrid2 testhexgrid2.cpp)
 target_link_libraries(testhexgrid2 ${MORPH_LDFLAGS})

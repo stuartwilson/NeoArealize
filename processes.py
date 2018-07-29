@@ -8,7 +8,7 @@ class pTemp:
         portID = basePort
         while (portID<basePort+20*10):
             try:
-                cmd = 'xterm -e "./'+modelbinarypath+' '+name+' '+logFile+'.txt '+str(seed)+' '+str(portID)+'" &'
+                cmd = 'xterm -e "./'+modelbinarypath+' '+name+' '+logFile+'.txt '+str(seed)+' '+str(portID)+' | tee results.log" &'
                 os.system(cmd)
                 self.s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
                 self.s.bind(('127.0.0.1', portID))
@@ -22,10 +22,10 @@ class pTemp:
         print 'Connection:', self.addr
 
     def stream(self,c):
-		self.data = self.conn.recv(BUFFERSIZE)
-		if self.data:
-			self.conn.send(str(c))
-		#time.sleep(0.005)
+        self.data = self.conn.recv(BUFFERSIZE)
+        if self.data:
+            self.conn.send(str(c))
+	    #time.sleep(0.005)
 
     def out(self):
         return self.data.split(',')[:-1]
@@ -70,10 +70,10 @@ class pBase:
         print 'Connection:', self.addr
 
     def stream(self,c):
-		self.data = self.conn.recv(BUFFERSIZE)#note has been 10000
-		if self.data:
-			self.conn.send(str(c))
-		#time.sleep(0.005)
+        self.data = self.conn.recv(BUFFERSIZE)#note has been 10000
+        if self.data:
+            self.conn.send(str(c))
+            #time.sleep(0.005)
 
     def quit(self):
         self.conn.close()

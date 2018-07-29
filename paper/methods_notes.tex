@@ -1,0 +1,414 @@
+% This is an example of using latex for a paper/report of specified
+% size/layout. It's useful if you want to provide a PDF that looks
+% like it was made in a normal word processor.
+
+% While writing, don't stop for errors
+\nonstopmode
+
+% Use the article doc class, with an 11 pt basic font size
+\documentclass[11pt, a4paper]{article}
+
+% Makes the main font Nimbus Roman, a Times New Roman lookalike:
+%\usepackage{mathptmx}% http://ctan.org/pkg/mathptmx
+% OR use this for proper Times New Roman (from msttcorefonts package
+% on Ubuntu). Use xelatex instead of pdflatex to compile:
+\usepackage{fontspec}
+\usepackage{xltxtra}
+\usepackage{xunicode}
+\defaultfontfeatures{Scale=MatchLowercase,Mapping=tex-text}
+\setmainfont{Times New Roman}
+
+% Set margins
+\usepackage[margin=2.5cm]{geometry}
+
+% Multilingual support
+\usepackage[english]{babel}
+
+% Nice mathematics
+\usepackage{amsmath}
+
+% Control over maketitle
+\usepackage{titling}
+
+% Section styling
+\usepackage{titlesec}
+
+% Ability to use colour in text
+\usepackage[usenames]{color}
+
+% For the \degree symbol
+\usepackage{gensymb}
+
+% Allow includegraphics and nice wrapped figures
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage[outercaption]{sidecap}
+
+% Set formats using titlesec
+\titleformat*{\section}{\bfseries\rmfamily}
+\titleformat*{\subsection}{\bfseries\itshape\rmfamily}
+
+% thetitle is the number of the section. This sets the distance from
+% the number to the section text.
+\titlelabel{\thetitle.\hskip0.3em\relax}
+
+% Set title spacing with titlesec, too.  The first {1.0ex plus .2ex
+% minus .7ex} sets the spacing above the section title. The second
+% {-1.0ex plus 0.2ex} sets the spacing the section title to the
+% paragraph.
+\titlespacing{\section}{0pc}{1.0ex plus .2ex minus .7ex}{-1.1ex plus 0.2ex}
+
+%% Trick to define a language alias and permit language = {en} in the .bib file.
+% From: http://tex.stackexchange.com/questions/199254/babel-define-language-synonym
+\usepackage{letltxmacro}
+\LetLtxMacro{\ORIGselectlanguage}{\selectlanguage}
+\makeatletter
+\DeclareRobustCommand{\selectlanguage}[1]{%
+  \@ifundefined{alias@\string#1}
+    {\ORIGselectlanguage{#1}}
+    {\begingroup\edef\x{\endgroup
+       \noexpand\ORIGselectlanguage{\@nameuse{alias@#1}}}\x}%
+}
+\newcommand{\definelanguagealias}[2]{%
+  \@namedef{alias@#1}{#2}%
+}
+\makeatother
+\definelanguagealias{en}{english}
+\definelanguagealias{eng}{english}
+%% End language alias trick
+
+%% Any aliases here
+\newcommand{\mb}[1]{\mathbf{#1}} % this won't work?
+% Emphasis and bold.
+\newcommand{\e}{\emph}
+\newcommand{\mycite}[1]{\cite{#1}}
+%% END aliases
+
+% Custom font defs
+% fontsize is \fontsize{fontsize}{linespacesize}
+\def\authorListFont{\fontsize{11}{11} }
+\def\corrAuthorFont{\fontsize{10}{10} }
+\def\affiliationListFont{\fontsize{11}{11}\itshape }
+\def\titleFont{\fontsize{14}{11} \bfseries }
+\def\textFont{\fontsize{11}{11} }
+\def\sectionHdrFont{\fontsize{11}{11}\bfseries}
+\def\bibFont{\fontsize{10}{10} }
+\def\captionFont{\fontsize{10}{10} }
+
+% Caption font size to be small.
+\usepackage[font=small,labelfont=bf]{caption}
+
+% Make a dot for the dot product, call it vcdot for 'vector calculus
+% dot'. Bigger than \cdot, smaller than \bullet.
+\makeatletter
+\newcommand*\vcdot{\mathpalette\vcdot@{.35}}
+\newcommand*\vcdot@[2]{\mathbin{\vcenter{\hbox{\scalebox{#2}{$\m@th#1\bullet$}}}}}
+\makeatother
+
+\def\firstAuthorLast{James}
+
+% Affiliations
+\def\Address{\\
+\affiliationListFont Adaptive Behaviour Research Group, Department of Psychology,
+  The University of Sheffield, Sheffield, UK \\
+}
+
+% The Corresponding Author should be marked with an asterisk. Provide
+% the exact contact address (this time including street name and city
+% zip code) and email of the corresponding author
+\def\corrAuthor{Seb James}
+\def\corrAddress{Department of Psychology, The University of Sheffield,
+  Western Bank, Sheffield, S10 2TP, UK}
+\def\corrEmail{seb.james@sheffield.ac.uk}
+
+% Figure out the font for the author list..
+\def\Authors{\authorListFont Sebastian James\\[1 ex]  \Address \\
+  \corrAuthorFont $^{*}$ Correspondence: \corrEmail}
+
+% No page numbering please
+\pagenumbering{gobble}
+
+% A trick to get the bibliography to show up with 1. 2. etc in place
+% of [1], [2] etc.:
+\makeatletter
+\renewcommand\@biblabel[1]{#1.}
+\makeatother
+
+% reduce separation between bibliography items if not using natbib:
+\let\OLDthebibliography\thebibliography
+\renewcommand\thebibliography[1]{
+  \OLDthebibliography{#1}
+  \setlength{\parskip}{0pt}
+  \setlength{\itemsep}{0pt plus 0.3ex}
+}
+
+% Set correct font for bibliography (doesn't work yet)
+%\renewcommand*{\bibfont}{\bibFont}
+
+% No paragraph indenting to match the VPH format
+\setlength{\parindent}{0pt}
+
+% Skip a line after paragraphs
+\setlength{\parskip}{0.5\baselineskip}
+\onecolumn
+
+% titling definitions
+\pretitle{\begin{center}\titleFont}
+\posttitle{\par\end{center}\vskip 0em}
+\preauthor{ % Fonts are set within \Authors
+        \vspace{-1.1cm} % Bring authors up towards title
+        \begin{center}
+        \begin{tabular}[t]{c}
+}
+\postauthor{\end{tabular}\par\end{center}}
+
+% Define title, empty date and authors
+\title {
+  Karbowski model in 2-D
+}
+\date{} % No date please
+\author{\Authors}
+
+%% END OF PREAMBLE
+
+\begin{document}
+
+\setlength{\droptitle}{-1.8cm} % move the title up a suitable amount
+\maketitle
+
+\vspace{-1.8cm} % HACK bring the introduction up towards the title. It
+                % would be better to do this with titling in \maketitle
+
+\section{Introduction}
+
+The maths of Eqs.~2 and 4 in ``Model of the Early Development of
+Thalamo-Cortical Connections and Area Patterning via Signaling
+Molecules'', Karbowski \& Ermentrout, 2004~\cite{karbowski_model_2004}.
+
+\section{One dimensional system}
+
+Equations 1-4 of \cite{karbowski_model_2004} is the full set of
+differential equations describing their system:
+
+\begin{equation}
+\frac{\partial c_i(x, t)}{\partial t} = -\alpha_i c_i(x, t) + \beta_i
+n(x, t)[a_i(x, t)]^k
+\end{equation}
+%
+\begin{equation}
+\frac{\partial a_i(x, t)}{\partial t} = \frac{\partial J_i(x, t)}{\partial
+x} + \alpha_i c_i(x, t) - \beta_i n(x, t)[a_i(x, t)]^k
+\end{equation}
+%
+\begin{equation}
+n(x, t) + \sum_{i=1}^{N} c_i(x, t) = 1
+\end{equation}
+%
+with the flux current
+%
+\begin{equation}
+J_i(x, t) = D \frac{\partial a_i(x, t)}{\partial x} - a_i
+\bigg(\gamma_{Ai} \frac{\partial \rho_A}{\partial x} +\gamma_{Bi} \frac{\partial \rho_B}{\partial x} + \gamma_{Ci} \frac{\partial \rho_C}{\partial x} \bigg)
+\end{equation}
+
+Note that (unlike in the original paper) I have been explicit about
+the time dependence of the state variables $a_i$, $c_i$, $J_i$ and $n$.
+
+\section{Two dimensional system}
+
+Extending the system above to two spatial dimensions changes $x$ into
+a two-dimensional $\mb{x}$ and changes the flux term, $J_i(x)$ as follows:
+%
+\begin{equation} \label{eq:Karb2D_dc}
+\frac{\partial c_i(\mb{x},t)}{\partial t} = -\alpha_i c_i((\mb{x},t) + \beta_i n(\mb{x},t)
+[a_i(\mb{x},t)]^k
+\end{equation}
+%
+\begin{equation} \label{eq:Karb2D_da}
+\frac{\partial a_i(\mb{x},t)}{\partial t} = \nabla\vcdot\mb{J}_i(\mb{x},t) + \alpha_i c_i(\mb{x},t) - \beta_i n(\mb{x},t)
+[a_i(\mb{x}, t)]^k
+\end{equation}
+%
+\begin{equation} \label{eq:Karb2D_conserve}
+n(\mb{x},t) + \sum_{i=1}^{N} c_i(\mb{x}, t) = 1
+\end{equation}
+%
+with the flux current
+%
+\begin{equation} \label{eq:Karb2D_J}
+\mb{J}_i(\mb{x},t) = D \nabla a_i(\mb{x},t) - a_i
+\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B + \gamma_{Ci} \nabla\rho_C \big)
+\end{equation}
+
+In order to compute $\nabla\vcdot\mb{J}_i(\mb{x},t)$, I need to do
+a little work. First, I point out that
+%
+\begin{equation}
+\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B
++ \gamma_{Ci} \nabla\rho_C \big)
+\end{equation}
+%
+is a static vector field; once computed at the start of the
+simulation, it is time-invariant. Call it $\mb{g}(\mb{x})$, so that
+%
+\begin{equation}
+\mb{J}_i(\mb{x},t) = D \nabla a_i(\mb{x},t) - a_i \mb{g}(\mb{x})
+\end{equation}
+%
+Now I can apply some vector calculus identities to work out the divergence
+of $\mb{J}_i(\mb{x})$:
+%
+\begin{equation}
+\nabla\vcdot\mb{J}_i(\mb{x}) = \nabla\vcdot\bigg(D \nabla
+a_i(\mb{x},t) - a_i \mb{g}(\mb{x}) \bigg)
+\end{equation}
+%
+and because the divergence operator is distributive,
+%
+\begin{equation}
+\nabla\vcdot\mb{J}_i(\mb{x}) = \nabla\vcdot\big(D \nabla
+a_i(\mb{x},t)\big) - \nabla\vcdot\big(a_i \mb{g}(\mb{x})\big)
+\end{equation}
+%
+$D$ is a constant and applying the vector calculus product rule
+identity to $\nabla\vcdot\big(a_i \mb{g}(\mb{x})\big)$:
+%
+\begin{equation}
+%
+\nabla\vcdot\mb{J}_i(\mb{x}) =
+D \nabla\vcdot\nabla a_i(\mb{x},t)
+-
+\big(
+a_i(\mb{x},t)\nabla\vcdot\mb{g}(\mb{x})
++
+\mb{g}(\mb{x})\vcdot\nabla a_i(\mb{x},t)
+\big)
+%
+\end{equation}
+%
+(to prove $\nabla\vcdot D\nabla a = D \nabla\vcdot\nabla a$, apply the
+product rule and note that $\nabla D = 0$ for constant $D$). Expanding
+the brackets we have:
+%
+\begin{equation}
+%
+\nabla\vcdot\mb{J}_i(\mb{x}) =
+D \nabla\vcdot\nabla a_i(\mb{x},t)
+-
+a_i(\mb{x},t)\nabla\vcdot\mb{g}(\mb{x})
+-
+\mb{g}(\mb{x})\vcdot\nabla a_i(\mb{x},t)
+%
+\end{equation}
+%
+which has three elements to compute: the Laplacian of
+$a_i(\mb{x},t)$; a time-independent modulator of
+$a_i(\mb{x},t)$ [because $\nabla\vcdot\mb{g}(\mb{x})$ is a
+time-independent static field]; and the dot product of the static
+vector field $\mb{g}(\mb{x})$ and the gradient of
+$a_i(\mb{x},t)$.
+
+I'm now ready to implement this in the class \texttt{RD\_2D\_Karb}
+in \texttt{process.cpp}. Each of the divergences can be
+simplified by means of Gauss's Theorem, which states that (in
+a two-dimensional system) the area integral of the divergence of a
+vector field $\mb{f}$ is equal to the integral around the boundary
+of the field dotted with the normal to the boundary:
+%
+\begin{equation}
+\int_A \nabla\vcdot\mb{f}\;dxdy = \int_c \mb{f}\vcdot d\hat{\mb{n}}
+\end{equation}
+
+See, for example \cite{george_b._arfken_mathematical_1995},
+Sect.~1.11, p 58.
+
+Reference \cite{lee_hexagonal_2014} presents an application of Gauss's
+Theorem to the solution of Poisson's equation, which contains a
+Laplacian term, on an hexagonal grid. The computation of our
+Laplacian, $D \nabla\vcdot\nabla a_i(\mb{x},t)$, integrated across
+the area of one hexagon located at position $\mb{p}_0$, with
+neighbours at positions $\mb{p}_1$--$\mb{p}_6$ is:
+%
+\begin{equation}
+D \nabla\vcdot\nabla a_i(\mb{p}_0,t) = D\frac{2}{3d^2} \sum_{j=1}^{6}\big(a_i(\mb{p}_j) - a_i(\mb{p}_0)\big)
+\end{equation}
+%
+where $d$ is the centre-to-centre distance between hexes in the
+grid. Applying Gauss's Theorem again, the computation of
+$a_i(\mb{p}_0,t)\nabla\vcdot\mb{g}(\mb{p}_0)$ becomes:
+%
+\begin{equation}
+\begin{split}
+\int_A a_i\nabla\vcdot\mb{g}\;dxdy & = \int_c \mb{g}\vcdot d\hat{\mathbf{n}} \\
+& \approx a_i(\mb{p}_0,t) \sum_{j=1}^{6} \frac{\mb{g}_j + \mb{g}_0}{2}\vcdot d\hat{\mathbf{n}} \\
+& = a_i(\mb{p}_0,t) \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \vcdot d\hat{\mathbf{n}} +  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \vcdot d\hat{\mathbf{n}} \bigg) \\
+& = a_i(\mb{p}_0,t) \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \cos (60\times(j-1)) +  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \sin (60\times(j-1)) \bigg) \\
+\end{split}
+\end{equation}
+%
+The final expression is suitable for a numerical computation. Lastly,
+the final term in the expression for $\mb{J}_i(\mb{x})$ is the
+scalar product of two vector fields which I'll carry out simply with
+Cartesian $x$ and $y$ components - so I'll re-use my spacegrad2D
+function to find $\nabla a_i$.
+
+\section{Boundary Conditions}
+
+We wish to implement no-flux boundary conditions on the equation
+system specified by Eqs.~\ref{eq:Karb2D_dc}-\ref{eq:Karb2D_J} to
+ensure that neither axonal branches, nor the number of thalamocortical
+connections changes across the boundary. This is equivalent to stating
+that the flux of axonal branches is zero at the boundary
+\begin{equation}
+\mb{J}_i(\mb{x}, t) \bigg\rvert_{boundary} = 0
+\end{equation}
+From Eq.~\ref{eq:Karb2D_J}:
+\begin{equation}
+\mb{J}_i(\mb{x},t)\bigg\rvert_{boundary} = \Big[ D \nabla a_i(\mb{x},t) - a_i
+\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B
++ \gamma_{Ci} \nabla\rho_C \big) \Big]  \bigg\rvert_{boundary}
+ = 0
+\end{equation}
+
+The question is, how to ensure this? Can I set the value of $a_i$ in a
+ghost cell so that
+
+\begin{equation}
+D \nabla a_i(\mb{x},t)\bigg\rvert_{boundary} =  a_i
+\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B
++ \gamma_{Ci} \nabla\rho_C \big)\bigg\rvert_{boundary}
+\end{equation}
+
+%
+% BIBLIOGRAPHY
+%
+\selectlanguage{English}
+\bibliographystyle{abbrvnotitle}
+% The bibliography NoTremor.bib is the one exported from Zotero. It
+% may be necessary to run my UTF-8 cleanup script, bbl_utf8_to_latex.sh
+%%\bibliography{NoTremor}
+%
+% It produces this:
+\begin{thebibliography}{1}
+
+\bibitem{george_b._arfken_mathematical_1995}
+{George B. Arfken} and H.~J. Weber.
+\newblock {\em Mathematical {Methods} for {Physicists}}.
+\newblock Academic Press, fourth edition edition, 1995.
+
+\bibitem{karbowski_model_2004}
+J.~Karbowski and G.~Ermentrout.
+\newblock {\em Journal of Computational Neuroscience}, 17(3):347--363, Nov.
+  2004.
+
+\bibitem{lee_hexagonal_2014}
+D.~Lee, H.~Tien, C.~Luo, et~al.
+\newblock {\em International Journal of Computer Mathematics},
+  91(9):1986--2009, Sept. 2014.
+
+\end{thebibliography}
+
+%%% Upload the *bib file along with the *tex file and PDF on
+%%% submission if the bibliography is not in the main *tex file
+
+\end{document}
