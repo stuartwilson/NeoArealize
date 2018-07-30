@@ -199,7 +199,7 @@ public:
     double theta3 = 0.39;
     double theta4 = 0.08;
 
-    //@}
+    //@} end factor expression dynamics parameters
 
     /*!
      * Rho_A/B/C variables in Eq 4 - the concentrations of axon
@@ -207,17 +207,21 @@ public:
      * time independent and we will treat time as such, populating
      * them at initialisation.
      */
+    //@{
     vector<double> rhoA;
     vector<double> rhoB;
     vector<double> rhoC;
+    //@}
 
     /*!
      * Into grad_rhoA/B/C put the two components of the gradient of
      * rhoA/B/C computed across the HexGrid surface.
      */
+    //@{
     array<vector<double>, 2> grad_rhoA;
     array<vector<double>, 2> grad_rhoB;
     array<vector<double>, 2> grad_rhoC;
+    //@}
 
     /*!
      * The HexGrid "background" for the Reaction Diffusion system.
@@ -468,19 +472,19 @@ public:
             // Add on the y gradient of vf[1]
             if (h.has_nnw && h.has_nne && h.has_nsw && h.has_nse) {
                 // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
-                div_vf[h.vi] += ((vf[1][h.nne->vi] - vf[1][h.nse->vi]) + (vf[1][h.nnw->vi] - vf[1][h.nsw->vi])) / (double)h.getDv();
+                div_vf[h.vi] += ((vf[1][h.nne->vi] - vf[1][h.nse->vi]) + (vf[1][h.nnw->vi] - vf[1][h.nsw->vi])) / (double)h.getV();
 
             } else if (h.has_nnw && h.has_nne ) {
-                div_vf[h.vi] += ( (vf[1][h.nne->vi] + vf[1][h.nnw->vi]) / 2.0 - vf[1][h.vi]) / (double)h.getDv();
+                div_vf[h.vi] += ( (vf[1][h.nne->vi] + vf[1][h.nnw->vi]) / 2.0 - vf[1][h.vi]) / (double)h.getV();
 
             } else if (h.has_nsw && h.has_nse) {
-                div_vf[h.vi] += (vf[1][h.vi] - (vf[1][h.nse->vi] + vf[1][h.nsw->vi]) / 2.0) / (double)h.getDv();
+                div_vf[h.vi] += (vf[1][h.vi] - (vf[1][h.nse->vi] + vf[1][h.nsw->vi]) / 2.0) / (double)h.getV();
 
             } else if (h.has_nnw && h.has_nsw) {
-                div_vf[h.vi] += (vf[1][h.nnw->vi] - vf[1][h.nsw->vi]) / (double)h.getTwoDv();
+                div_vf[h.vi] += (vf[1][h.nnw->vi] - vf[1][h.nsw->vi]) / (double)h.getTwoV();
 
             } else if (h.has_nne && h.has_nse) {
-                div_vf[h.vi] += (vf[1][h.nne->vi] - vf[1][h.nse->vi]) / (double)h.getTwoDv();
+                div_vf[h.vi] += (vf[1][h.nne->vi] - vf[1][h.nse->vi]) / (double)h.getTwoV();
             } else {
                 // Leave grady at 0
             }
@@ -496,7 +500,8 @@ public:
         for (auto h : this->hg->hexen) {
             if (abs(f[h.vi]) > dangerThresh) {
                 DBG ("Blow-up threshold exceeded at Hex.vi=" << h.vi << " ("<< h.ri <<","<< h.gi <<")" <<  ": " << f[h.vi]);
-                while (120) {
+                unsigned int wait = 0;
+                while (wait++ < 120) {
                     usleep (1000000);
                 }
             }
@@ -539,28 +544,28 @@ public:
                 // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
 #ifdef DEBUG2
                 if (h.vi == 0) {
-                    double _d = (double)h.getDv();
-                    double _td = (double)h.getTwoDv();
-                    DBG2 ("y case 1. getDv: " << _d << " getTwoDv: " << _td);
+                    double _d = (double)h.getV();
+                    double _td = (double)h.getTwoV();
+                    DBG2 ("y case 1. getV: " << _d << " getTwoV: " << _td);
                 }
 #endif
-                gradf[1][h.vi] = ((f[h.nne->vi] - f[h.nse->vi]) + (f[h.nnw->vi] - f[h.nsw->vi])) / (double)h.getDv();
+                gradf[1][h.vi] = ((f[h.nne->vi] - f[h.nse->vi]) + (f[h.nnw->vi] - f[h.nsw->vi])) / (double)h.getV();
 
             } else if (h.has_nnw && h.has_nne ) {
                 //if (h.vi == 0) { DBG ("y case 2"); }
-                gradf[1][h.vi] = ( (f[h.nne->vi] + f[h.nnw->vi]) / 2.0 - f[h.vi]) / (double)h.getDv();
+                gradf[1][h.vi] = ( (f[h.nne->vi] + f[h.nnw->vi]) / 2.0 - f[h.vi]) / (double)h.getV();
 
             } else if (h.has_nsw && h.has_nse) {
                 //if (h.vi == 0) { DBG ("y case 3"); }
-                gradf[1][h.vi] = (f[h.vi] - (f[h.nse->vi] + f[h.nsw->vi]) / 2.0) / (double)h.getDv();
+                gradf[1][h.vi] = (f[h.vi] - (f[h.nse->vi] + f[h.nsw->vi]) / 2.0) / (double)h.getV();
 
             } else if (h.has_nnw && h.has_nsw) {
                 //if (h.vi == 0) { DBG ("y case 4"); }
-                gradf[1][h.vi] = (f[h.nnw->vi] - f[h.nsw->vi]) / (double)h.getTwoDv();
+                gradf[1][h.vi] = (f[h.nnw->vi] - f[h.nsw->vi]) / (double)h.getTwoV();
 
             } else if (h.has_nne && h.has_nse) {
                 //if (h.vi == 0) { DBG ("y case 5"); }
-                gradf[1][h.vi] = (f[h.nne->vi] - f[h.nse->vi]) / (double)h.getTwoDv();
+                gradf[1][h.vi] = (f[h.nne->vi] - f[h.nse->vi]) / (double)h.getTwoV();
             } else {
                 // Leave grady at 0
             }
@@ -585,12 +590,20 @@ public:
         }
 
         // 1. Compute Karb2004 Eq 3. (coupling between connections made by each TC type)
+        double nsum = 0.0;
+        double csum = 0.0;
         for (auto h : this->hg->hexen) {
             n[h.vi] = 0; // whoops forgot this!
             for (unsigned int i=0; i<N; ++i) {
                 n[h.vi] += c[i][h.vi];
             }
+            csum += c[0][h.vi];
             n[h.vi] = 1. - n[h.vi];
+            nsum += n[h.vi];
+        }
+        if (this->stepCount % 20 == 0) {
+            DBG("sum of all n is " << nsum);
+            DBG("sum of all c for i=0 is " << csum);
         }
 
         // 2. Do integration of a (RK in the 1D model). Involves computing axon branching flux.
@@ -690,15 +703,14 @@ public:
      * Plot the system on @a disps
      */
     void plot (vector<morph::Gdisplay>& disps) {
-        this->plot_f (this->a, disps, 6);
-        this->plot_f (this->c, disps, 11);
+        this->plot_f (this->a, disps, 2);
+        this->plot_f (this->c, disps, 7);
     }
 
     /*!
      * Plot a or c
      */
     void plot_f (vector<vector<double> >& f, vector<morph::Gdisplay>& disps, unsigned int display_offset) {
-
         vector<double> fix(3, 0.0);
         vector<double> eye(3, 0.0);
         eye[2] = -0.4;
@@ -787,25 +799,25 @@ public:
 
         // Step through vectors or iterate through list? The latter should be just fine here.
         disps[0].resetDisplay (fix, eye, rot);
+
+        float hgwidth = this->hg->getXmax()-this->hg->getXmin();
+        array<float,3> offset1 = { -hgwidth-(hgwidth/10), 0.0f, 0.0f };
+        array<float,3> offset2 = { 0.0f, 0.0f, 0.0f };
+        array<float,3> offset3 = { hgwidth+(hgwidth/10), 0.0f, 0.0f };
+
         for (auto h : this->hg->hexen) {
             array<float,3> cl_emx = morph::Tools::getJetColorF (norm_emx[h.vi]);
-            disps[0].drawHex (h.position(), (h.d/2.0f), cl_emx);
+            disps[0].drawHex (h.position(), offset1, (h.d/2.0f), cl_emx);
         }
-        disps[0].redrawDisplay();
-
-        disps[1].resetDisplay (fix, eye, rot);
         for (auto h : this->hg->hexen) {
             array<float,3> cl_pax = morph::Tools::getJetColorF (norm_pax[h.vi]);
-            disps[1].drawHex (h.position(), (h.d/2.0f), cl_pax);
+            disps[0].drawHex (h.position(), offset2, (h.d/2.0f), cl_pax);
         }
-        disps[1].redrawDisplay();
-
-        disps[2].resetDisplay (fix, eye, rot);
         for (auto h : this->hg->hexen) {
             array<float,3> cl_fgf = morph::Tools::getJetColorF (norm_fgf[h.vi]);
-            disps[2].drawHex (h.position(), (h.d/2.0f), cl_fgf);
+            disps[0].drawHex (h.position(), offset3, (h.d/2.0f), cl_fgf);
         }
-        disps[2].redrawDisplay();
+        disps[0].redrawDisplay();
     }
 
     /*!
@@ -852,27 +864,28 @@ public:
             norm_rhoC[h] = fmin (fmax (((this->rhoC[h]) - minrhoC) * scalerhoC, 0.0), 1.0);
         }
 
+        float hgwidth = this->hg->getXmax()-this->hg->getXmin();
+        array<float,3> offset1 = { -hgwidth-(hgwidth/10), 0.0f, 0.0f };
+        array<float,3> offset2 = { 0.0f, 0.0f, 0.0f };
+        array<float,3> offset3 = { hgwidth+(hgwidth/10), 0.0f, 0.0f };
+
         // Step through vectors or iterate through list? The latter should be just fine here.
-        disps[3].resetDisplay (fix, eye, rot);
+        disps[1].resetDisplay (fix, eye, rot);
         for (auto h : this->hg->hexen) {
             array<float,3> cl_rhoA = morph::Tools::getJetColorF (norm_rhoA[h.vi]);
-            disps[3].drawHex (h.position(), (h.d/2.0f), cl_rhoA);
+            disps[1].drawHex (h.position(), offset1, (h.d/2.0f), cl_rhoA);
         }
-        disps[3].redrawDisplay();
 
-        disps[4].resetDisplay (fix, eye, rot);
         for (auto h : this->hg->hexen) {
             array<float,3> cl_rhoB = morph::Tools::getJetColorF (norm_rhoB[h.vi]);
-            disps[4].drawHex (h.position(), (h.d/2.0f), cl_rhoB);
+            disps[1].drawHex (h.position(), offset2, (h.d/2.0f), cl_rhoB);
         }
-        disps[4].redrawDisplay();
 
-        disps[5].resetDisplay (fix, eye, rot);
         for (auto h : this->hg->hexen) {
             array<float,3> cl_rhoC = morph::Tools::getJetColorF (norm_rhoC[h.vi]);
-            disps[5].drawHex (h.position(), (h.d/2.0f), cl_rhoC);
+            disps[1].drawHex (h.position(), offset3, (h.d/2.0f), cl_rhoC);
         }
-        disps[5].redrawDisplay();
+        disps[1].redrawDisplay();
     }
 
     /*!
@@ -959,8 +972,9 @@ public:
         // Compute J. J blows up if grad_a blows up.
         for (auto h : this->hg->hexen) {
             if (h.onBoundary() == true) {
-                // Force divJ to 0 on boundary
-                this->divJ[i][h.vi] = 0;
+                // Force J to 0 on boundary
+                this->J[i][0][h.vi] = 0;
+                this->J[i][1][h.vi] = 0;
             } else {
                 this->J[i][0][h.vi] = this->D * this->grad_a[i][0][h.vi] - fa[h.vi] * this->g[i][0][h.vi];
                 this->J[i][1][h.vi] = this->D * this->grad_a[i][1][h.vi] - fa[h.vi] * this->g[i][1][h.vi];
@@ -1102,67 +1116,54 @@ int main (int argc, char **argv)
     eye[2] = -0.4;
     vector<double> rot(3, 0.0);
 
-    displays.push_back (morph::Gdisplay (600, "emx", 0.0, 0.0, 0.0));
+    int dwidth = 500;
+    double rhoInit = 1.5;
+    displays.push_back (morph::Gdisplay (1700, dwidth, "emx_pax_fgf", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "pax", 0.0, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (1700, dwidth, "rhoA_rhoB_rhoC", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "fgf", 0.0, 0.0, 0.0));
+    rhoInit = 1.5;
+    displays.push_back (morph::Gdisplay (dwidth, "a[0]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "rhoA", 0.0, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (dwidth, "a[1]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "rhoB", 0.0, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (dwidth, "a[2]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "rhoC", 0.0, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (dwidth, "a[3]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "a[0]", 0.0, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (dwidth, "a[4]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "a[1]", 0.0, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (dwidth, "c[0]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "a[2]", 0.0, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (dwidth, "c[1]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "a[3]", 0.0, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (dwidth, "c[2]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "a[4]", 0.0, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (dwidth, "c[3]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (600, "c[0]", 0.0, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (600, "c[1]", 0.0, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (600, "c[2]", 0.0, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (600, "c[3]", 0.0, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (600, "c[4]", 0.0, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (dwidth, "c[4]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
