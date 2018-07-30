@@ -703,14 +703,14 @@ public:
      * Plot the system on @a disps
      */
     void plot (vector<morph::Gdisplay>& disps) {
-        this->plot_f (this->a, disps, 2);
-        this->plot_f (this->c, disps, 7);
+        this->plot_f (this->a, disps[2]);
+        this->plot_f (this->c, disps[3]);
     }
 
     /*!
      * Plot a or c
      */
-    void plot_f (vector<vector<double> >& f, vector<morph::Gdisplay>& disps, unsigned int display_offset) {
+    void plot_f (vector<vector<double> >& f, morph::Gdisplay& disp) {
         vector<double> fix(3, 0.0);
         vector<double> eye(3, 0.0);
         eye[2] = -0.4;
@@ -742,15 +742,19 @@ public:
             }
         }
 
+        float hgwidth = this->hg->getXmax()-this->hg->getXmin();
+        array<float,3> offset = { 2*(-hgwidth-(hgwidth/20)), 0.0f, 0.0f };
+
         // Draw
+        disp.resetDisplay (fix, eye, rot);
         for (unsigned int i = 0; i<this->N; ++i) {
-            disps[i+display_offset].resetDisplay (fix, eye, rot);
             for (auto h : this->hg->hexen) {
                 array<float,3> cl_a = morph::Tools::getJetColorF (norm_a[i][h.vi]);
-                disps[i+display_offset].drawHex (h.position(), (h.d/2.0f), cl_a);
+                disp.drawHex (h.position(), offset, (h.d/2.0f), cl_a);
             }
-            disps[i+display_offset].redrawDisplay();
+            offset[0] += hgwidth + (hgwidth/20);
         }
+        disp.redrawDisplay();
     }
 
     /*!
@@ -1126,44 +1130,11 @@ int main (int argc, char **argv)
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    rhoInit = 1.5;
-    displays.push_back (morph::Gdisplay (dwidth, "a[0]", rhoInit, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (1700, 300, "a[0] to a[4]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (dwidth, "a[1]", rhoInit, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (dwidth, "a[2]", rhoInit, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (dwidth, "a[3]", rhoInit, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (dwidth, "a[4]", rhoInit, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (dwidth, "c[0]", rhoInit, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (dwidth, "c[1]", rhoInit, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (dwidth, "c[2]", rhoInit, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (dwidth, "c[3]", rhoInit, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    displays.push_back (morph::Gdisplay (dwidth, "c[4]", rhoInit, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (1700, 300, "c[0] to c[4]", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
