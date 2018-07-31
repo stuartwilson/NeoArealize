@@ -181,9 +181,11 @@
 
 \section{Introduction}
 
-The maths of Eqs.~2 and 4 in ``Model of the Early Development of
-Thalamo-Cortical Connections and Area Patterning via Signaling
-Molecules'', Karbowski \& Ermentrout, 2004~\cite{karbowski_model_2004}.
+This is a working document starting from the model described in Eqs.~2
+and 4 in ``Model of the Early Development of Thalamo-Cortical
+Connections and Area Patterning via Signaling Molecules'',
+Karbowski \& Ermentrout, 2004~\cite{karbowski_model_2004}. I then
+consider extending this model into two dimensions.
 
 \section{One dimensional system}
 
@@ -208,11 +210,11 @@ with the flux current
 %
 \begin{equation}
 J_i(x, t) = D \frac{\partial a_i(x, t)}{\partial x} - a_i
-\bigg(\gamma_{Ai} \frac{\partial \rho_A}{\partial x} +\gamma_{Bi} \frac{\partial \rho_B}{\partial x} + \gamma_{Ci} \frac{\partial \rho_C}{\partial x} \bigg)
+\bigg(\gamma_{Ai} \frac{\partial \rho_A(x)}{\partial x} +\gamma_{Bi} \frac{\partial \rho_B(x)}{\partial x} + \gamma_{Ci} \frac{\partial \rho_C(x)}{\partial x} \bigg)
 \end{equation}
 
 Note that (unlike in the original paper) I have been explicit about
-the time dependence of the state variables $a_i$, $c_i$, $J_i$ and $n$.
+the space and time dependence of the state variables $a_i$, $c_i$, $J_i$, $n$, $\rho_A$, $\rho_B$ and $\rho_C$.
 
 \section{Two dimensional system}
 
@@ -237,33 +239,81 @@ with the flux current
 %
 \begin{equation} \label{eq:Karb2D_J}
 \mb{J}_i(\mb{x},t) = D \nabla a_i(\mb{x},t) - a_i
-\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B + \gamma_{Ci} \nabla\rho_C \big)
+\big(\gamma_{Ai} \nabla\rho_A(\mb{x}) +\gamma_{Bi} \nabla\rho_B(\mb{x}) + \gamma_{Ci} \nabla\rho_C(\mb{x}) \big)
 \end{equation}
+
+The ideal boundary conditions that I'd like to apply to these equations is:
+%
+\begin{equation}
+\mb{J}_i(\mb{x},t) \bigg\rvert_{boundary} = 0
+\end{equation}
+%
+to agree with the boundary condition applied in the paper for the 1D system.
 
 In order to compute $\nabla\vcdot\mb{J}_i(\mb{x},t)$, I need to do
 a little work. First, I point out that
 %
 \begin{equation}
-\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B
-+ \gamma_{Ci} \nabla\rho_C \big)
+\mb{g}(\mb{x}) \equiv \big(\gamma_{Ai} \nabla\rho_A(\mb{x}) +\gamma_{Bi} \nabla\rho_B(\mb{x})
++ \gamma_{Ci} \nabla\rho_C(\mb{x}) \big)
 \end{equation}
 %
 is a static vector field; once computed at the start of the
-simulation, it is time-invariant. Call it $\mb{g}(\mb{x})$, so that
+simulation, it is time-invariant. $\mb{J}_i$ is thus:
 %
-\begin{equation}
+\begin{equation}\label{eq:J}
 \mb{J}_i(\mb{x},t) = D \nabla a_i(\mb{x},t) - a_i \mb{g}(\mb{x})
 \end{equation}
+
+\subsection{Computing div J: approach 1}
+
+Taking the divergence of Eq.~\ref{eq:J}:
 %
-Now I can apply some vector calculus identities to work out the divergence
-of $\mb{J}_i(\mb{x})$:
-%
-\begin{equation}
-\nabla\vcdot\mb{J}_i(\mb{x}) = \nabla\vcdot\bigg(D \nabla
+\begin{equation} \label{eq:divJ}
+\nabla\vcdot\mb{J}_i(\mb{x},t) = \nabla\vcdot\bigg(D \nabla
 a_i(\mb{x},t) - a_i \mb{g}(\mb{x}) \bigg)
 \end{equation}
+
+Now simply multiply the current values of $a_i$ and $\mb{g}$ and
+compute an approximation to $\nabla a_i$, resulting in a vector field
+which is $\mb{J}$. The boundary condition can be forced by setting
+this to 0 for boundary hexes (ugly, and quite possibly completely
+fallacious). Finally, compute $\nabla\vcdot\mb{J}_i(\mb{x},t)$ using
+the result that divergences can be simplified by means of Gauss's
+Theorem. This states that (in a two-dimensional system) the area
+integral of the divergence of a vector field $\mb{f}$ is equal to the
+integral around the boundary of the field dotted with the normal to
+the boundary:
 %
-and because the divergence operator is distributive,
+\begin{equation}
+\iint_A \nabla\vcdot\mb{f}\;dxdy = \oint_c \mb{f}\vcdot d\hat{\mb{n}}
+\end{equation}
+
+See, for example \cite{george_b._arfken_mathematical_1995},
+Sect.~1.11, p 58.
+
+The contour integral can be discretized:
+%
+\begin{equation}
+\begin{split}
+\oint_c \mb{f}\vcdot d\hat{\mathbf{n}} & \approx \sum_{j=1}^{6} \frac{\mb{f}_j + \mb{f}_0}{2}\vcdot d\hat{\mathbf{n}} \\
+& =  \sum_{j=1}^{6} \frac{\mb{f}_j^x + \mb{f}_0^x}{2} \vcdot d\hat{\mathbf{n}} +  \sum_{j=1}^{6} \frac{\mb{f}_j^y + \mb{f}_0^y}{2} \vcdot d\hat{\mathbf{n}} \\
+& =  \sum_{j=1}^{6} \frac{\mb{f}_j^x + \mb{f}_0^x}{2} \cos (60\times(j-1)) +  \sum_{j=1}^{6} \frac{\mb{f}_j^y + \mb{f}_0^y}{2} \sin (60\times(j-1)) \\
+\end{split}
+\end{equation}
+
+An advantage to using this approach is that if it is required that the
+\emph{divergence} be 0 across the boundary then those sections of the hex
+that lie on the boundary can have $\mb{f}_j$ set equal to $\mb{f}_0$
+(this is the ghost cell method), satisfing this boundary condition,
+whilst permitting flow through the hex parallel to the boundary.
+
+\subsection{Computing div J: approach 2}
+
+%
+An alternative approach is to apply some vector calculus identities to
+work out the divergence of $\mb{J}_i(\mb{x})$. Because the divergence
+operator is distributive, Eq.~\ref{eq:divJ} can be expanded:
 %
 \begin{equation}
 \nabla\vcdot\mb{J}_i(\mb{x}) = \nabla\vcdot\big(D \nabla
@@ -290,7 +340,7 @@ a_i(\mb{x},t)\nabla\vcdot\mb{g}(\mb{x})
 product rule and note that $\nabla D = 0$ for constant $D$). Expanding
 the brackets we have:
 %
-\begin{equation}
+\begin{equation} \label{eq:divJExpanded}
 %
 \nabla\vcdot\mb{J}_i(\mb{x}) =
 D \nabla\vcdot\nabla a_i(\mb{x},t)
@@ -308,26 +358,13 @@ time-independent static field]; and the dot product of the static
 vector field $\mb{g}(\mb{x})$ and the gradient of
 $a_i(\mb{x},t)$.
 
-I'm now ready to implement this in the class \texttt{RD\_2D\_Karb}
-in \texttt{process.cpp}. Each of the divergences can be
-simplified by means of Gauss's Theorem, which states that (in
-a two-dimensional system) the area integral of the divergence of a
-vector field $\mb{f}$ is equal to the integral around the boundary
-of the field dotted with the normal to the boundary:
-%
-\begin{equation}
-\int_A \nabla\vcdot\mb{f}\;dxdy = \int_c \mb{f}\vcdot d\hat{\mb{n}}
-\end{equation}
-
-See, for example \cite{george_b._arfken_mathematical_1995},
-Sect.~1.11, p 58.
-
+Each of the divergences can be simplified by means of Gauss's Theorem.
 Reference \cite{lee_hexagonal_2014} presents an application of Gauss's
 Theorem to the solution of Poisson's equation, which contains a
 Laplacian term, on an hexagonal grid. The computation of our
-Laplacian, $D \nabla\vcdot\nabla a_i(\mb{x},t)$, integrated across
-the area of one hexagon located at position $\mb{p}_0$, with
-neighbours at positions $\mb{p}_1$--$\mb{p}_6$ is:
+Laplacian, $D \nabla\vcdot\nabla a_i(\mb{x},t)$, integrated across the
+area of one hexagon located at position $\mb{p}_0$, with neighbours at
+positions $\mb{p}_1$--$\mb{p}_6$ is:
 %
 \begin{equation}
 D \nabla\vcdot\nabla a_i(\mb{p}_0,t) = D\frac{2}{3d^2} \sum_{j=1}^{6}\big(a_i(\mb{p}_j) - a_i(\mb{p}_0)\big)
@@ -335,11 +372,11 @@ D \nabla\vcdot\nabla a_i(\mb{p}_0,t) = D\frac{2}{3d^2} \sum_{j=1}^{6}\big(a_i(\m
 %
 where $d$ is the centre-to-centre distance between hexes in the
 grid. Applying Gauss's Theorem again, the computation of
-$a_i(\mb{p}_0,t)\nabla\vcdot\mb{g}(\mb{p}_0)$ becomes:
+$a_i(\mb{p}_0,t)\nabla\vcdot\mb{g}(\mb{p}_0)$ can be written:
 %
 \begin{equation}
 \begin{split}
-\int_A a_i\nabla\vcdot\mb{g}\;dxdy & = \int_c \mb{g}\vcdot d\hat{\mathbf{n}} \\
+\iint_A a_i\nabla\vcdot\mb{g}\;dxdy & = a_i(\mb{p}_0) \oint_c \mb{g}\vcdot d\hat{\mathbf{n}} \\
 & \approx a_i(\mb{p}_0,t) \sum_{j=1}^{6} \frac{\mb{g}_j + \mb{g}_0}{2}\vcdot d\hat{\mathbf{n}} \\
 & = a_i(\mb{p}_0,t) \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \vcdot d\hat{\mathbf{n}} +  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \vcdot d\hat{\mathbf{n}} \bigg) \\
 & = a_i(\mb{p}_0,t) \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \cos (60\times(j-1)) +  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \sin (60\times(j-1)) \bigg) \\
@@ -347,10 +384,14 @@ $a_i(\mb{p}_0,t)\nabla\vcdot\mb{g}(\mb{p}_0)$ becomes:
 \end{equation}
 %
 The final expression is suitable for a numerical computation. Lastly,
-the final term in the expression for $\mb{J}_i(\mb{x})$ is the
+the final term in Eq.~\ref{eq:divJExpanded} is the
 scalar product of two vector fields which I'll carry out simply with
 Cartesian $x$ and $y$ components - so I'll re-use my spacegrad2D
 function to find $\nabla a_i$.
+
+One possible advantage of using this method over the first is that
+more of the divergence of $\mb{J}$ is computed by means of sums and less by
+means of gradient approximations.
 
 \section{Boundary Conditions}
 
@@ -380,9 +421,9 @@ D \nabla a_i(\mb{x},t)\bigg\rvert_{boundary} =  a_i
 \end{equation}
 
 is true? Alternatively, just brute-force the boundary hexes to have
-$\nabla\vcdot\mb{J}_i(\mb{x}) = 0$ at all times, although this isn't
-quite the same as the stated boundary condition in the paper, which is
-that stated in Eq.~\ref{eq:idealbc}.
+$\nabla\vcdot\mb{J}_i(\mb{x}) = 0$ or $\mb{J}_i(\mb{x}) = 0$ at all
+times.
+
 %
 % BIBLIOGRAPHY
 %

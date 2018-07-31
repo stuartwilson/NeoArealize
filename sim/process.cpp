@@ -32,7 +32,9 @@ public:
      */
     //@{
     //! Square root of 3 over 2
-    const double R3_OVER_2 = 0.866025404;
+    const double R3_OVER_2 = 0.866025403784439;
+    //! Square root of 3
+    const double ROOT3 = 1.73205080756888;
     //@}
 
     /*!
@@ -492,6 +494,80 @@ public:
     }
 
     /*!
+     * Using the boundary integral, compute the divergence of the
+     * vector field vf, placing the result in div_vf.
+     */
+    void divergence_boundary (array<vector<double>, 2>& vf, vector<double>& div_vf) {
+        // It's dvf_x/dx + dvf_y/dy. Our incoming vector field, vf is
+        // already in plain old x,y coordinates, but we do need to
+        // compute change of values between adjacent hexes.
+        for (auto h : this->hg->hexen) {
+            div_vf[h.vi] = 0.0;
+            if (h.d == 0.0) {
+                throw runtime_error ("h.d is unexpectedly 0.");
+            }
+
+            // First sum
+            if (h.has_ne) {
+                div_vf[h.vi] += /*cos (0)*/ (vf[0][h.ne->vi] + vf[0][h.vi]);
+            } else {
+                div_vf[h.vi] += (2.0 * vf[0][h.vi]);
+            }
+            if (h.has_nne) {
+                div_vf[h.vi] += /*cos (60)*/ 0.5 * (vf[0][h.nne->vi] + vf[0][h.vi]);
+            } else {
+                div_vf[h.vi] += (/*0.5 * 2.0 * */ vf[0][h.vi]);
+            }
+            if (h.has_nnw) {
+                div_vf[h.vi] -= /*cos (120)*/ 0.5 * (vf[0][h.nnw->vi] + vf[0][h.vi]);
+            } else {
+                div_vf[h.vi] -= (/*0.5 * 2.0 * */ vf[0][h.vi]);
+            }
+            if (h.has_nw) {
+                div_vf[h.vi] -= /*cos (180)*/ (vf[0][h.nw->vi] + vf[0][h.vi]);
+            } else {
+                div_vf[h.vi] -= (2.0 * vf[0][h.vi]);
+            }
+            if (h.has_nsw) {
+                div_vf[h.vi] -= /*cos (240)*/ 0.5 * (vf[0][h.nsw->vi] + vf[0][h.vi]);
+            } else {
+                div_vf[h.vi] -= (/*0.5 * 2.0 * */ vf[0][h.vi]);
+            }
+            if (h.has_nse) {
+                div_vf[h.vi] += /*cos (300)*/ 0.5 * (vf[0][h.nse->vi] + vf[0][h.vi]);
+            } else {
+                div_vf[h.vi] += (/*0.5 * 2.0 * */ vf[0][h.vi]);
+            }
+
+            // 2nd sum
+            //div_vf[h.vi] += sin (0) * (vf[1][h.ne->vi] + vf[1][h.vi]);
+            if (h.has_nne) {
+                div_vf[h.vi] += /*sin (60)*/ R3_OVER_2 * (vf[1][h.nne->vi] + vf[1][h.vi]);
+            } else {
+                div_vf[h.vi] += ROOT3 * vf[1][h.vi];
+            }
+            if (h.has_nnw) {
+                div_vf[h.vi] += /*sin (120)*/ R3_OVER_2 * (vf[1][h.nnw->vi] + vf[1][h.vi]);
+            } else {
+                div_vf[h.vi] += ROOT3 * vf[1][h.vi];
+            }
+            //div_vf[h.vi] += sin (180) * (vf[1][h.nw->vi] + vf[1][h.vi]);
+            if (h.has_nsw) {
+                div_vf[h.vi] -= /*sin (240)*/ R3_OVER_2 * (vf[1][h.nsw->vi] + vf[1][h.vi]);
+            } else {
+                div_vf[h.vi] -= ROOT3 * vf[1][h.vi];
+            }
+            if (h.has_nse) {
+                div_vf[h.vi] -= /*sin (300)*/ R3_OVER_2 * (vf[1][h.nse->vi] + vf[1][h.vi]);
+            } else {
+                div_vf[h.vi] -= ROOT3 * vf[1][h.vi];
+            }
+            div_vf[h.vi] /= 2.0;
+
+        }
+    }
+
+    /*!
      * Examine the value in each Hex of the hexgrid of the scalar
      * field f. If abs(f[h]) exceeds the size of dangerThresh, then
      * output debugging information.
@@ -917,9 +993,12 @@ public:
      */
     void compute_divJ (vector<double>& fa, unsigned int i) {
 
-// Both stable with dt = 0.0001;
+// Stable with dt = 0.0001;
 #define VECTOR_CALCULUS_EXPANSION_METHOD 1
+// Stable(ish) with dt = 0.001;
 //#define NAIVE_METHOD_WITH_BOUNDARY_TESTING 1
+// Unstable
+//#define NAIVE_METHOD 1
 
 #ifdef VECTOR_CALCULUS_EXPANSION_METHOD
         // Three terms to compute; see Eq. 14 in methods_notes.pdf
@@ -980,7 +1059,7 @@ public:
         // Compute J. J blows up if grad_a blows up.
         for (auto h : this->hg->hexen) {
             if (h.onBoundary() == true) {
-                // Force J to 0 on boundary
+                // Force J to 0 on boundary. Is there a less brutal way?
                 this->J[i][0][h.vi] = 0;
                 this->J[i][1][h.vi] = 0;
             } else {
@@ -989,10 +1068,10 @@ public:
             }
         }
         // Compute divergence of J
-        this->divergence (this->J[i], this->divJ[i]);
+        this->divergence_boundary (this->J[i], this->divJ[i]);
 #endif
 
-#ifdef OLD_WAY
+#ifdef NAIVE_METHOD
         // Compute gradient of a_i(x)
         this->spacegrad2D (fa, this->grad_a[i]);
         // Compute J. J blows up if grad_a blows up.
@@ -1001,7 +1080,7 @@ public:
             this->J[i][1][h] = this->D * this->grad_a[i][1][h] - fa[h] * this->g[i][1][h];
         }
         // Compute divergence of J
-        this->divergence (this->J[i], this->divJ[i]);
+        this->divergence_boundary (this->J[i], this->divJ[i]);
 #endif
     }
 
