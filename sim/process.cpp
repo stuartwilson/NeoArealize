@@ -742,6 +742,8 @@ public:
             }
         }
 
+        // Create an offset which we'll increment by the width of the
+        // map, starting from the left-most map (f[0])
         float hgwidth = this->hg->getXmax()-this->hg->getXmin();
         array<float,3> offset = { 2*(-hgwidth-(hgwidth/20)), 0.0f, 0.0f };
 
@@ -804,10 +806,11 @@ public:
         // Step through vectors or iterate through list? The latter should be just fine here.
         disps[0].resetDisplay (fix, eye, rot);
 
+        // Set offsets for the three maps that we'll plot
         float hgwidth = this->hg->getXmax()-this->hg->getXmin();
-        array<float,3> offset1 = { -hgwidth-(hgwidth/10), 0.0f, 0.0f };
+        array<float,3> offset1 = { -hgwidth-(hgwidth/20), 0.0f, 0.0f };
         array<float,3> offset2 = { 0.0f, 0.0f, 0.0f };
-        array<float,3> offset3 = { hgwidth+(hgwidth/10), 0.0f, 0.0f };
+        array<float,3> offset3 = { hgwidth+(hgwidth/20), 0.0f, 0.0f };
 
         for (auto h : this->hg->hexen) {
             array<float,3> cl_emx = morph::Tools::getJetColorF (norm_emx[h.vi]);
@@ -868,10 +871,11 @@ public:
             norm_rhoC[h] = fmin (fmax (((this->rhoC[h]) - minrhoC) * scalerhoC, 0.0), 1.0);
         }
 
+        // Set offsets for the three maps that we'll plot
         float hgwidth = this->hg->getXmax()-this->hg->getXmin();
-        array<float,3> offset1 = { -hgwidth-(hgwidth/10), 0.0f, 0.0f };
+        array<float,3> offset1 = { -hgwidth-(hgwidth/20), 0.0f, 0.0f };
         array<float,3> offset2 = { 0.0f, 0.0f, 0.0f };
-        array<float,3> offset3 = { hgwidth+(hgwidth/10), 0.0f, 0.0f };
+        array<float,3> offset3 = { hgwidth+(hgwidth/20), 0.0f, 0.0f };
 
         // Step through vectors or iterate through list? The latter should be just fine here.
         disps[1].resetDisplay (fix, eye, rot);
@@ -1120,13 +1124,12 @@ int main (int argc, char **argv)
     eye[2] = -0.4;
     vector<double> rot(3, 0.0);
 
-    int dwidth = 500;
     double rhoInit = 1.5;
-    displays.push_back (morph::Gdisplay (1700, dwidth, "emx_pax_fgf", rhoInit, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (1020, 300, "emx_pax_fgf", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (1700, dwidth, "rhoA_rhoB_rhoC", rhoInit, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (1020, 300, "rhoA_rhoB_rhoC", rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
