@@ -1125,19 +1125,24 @@ int main (int argc, char **argv)
     vector<double> rot(3, 0.0);
 
     double rhoInit = 1.5;
-    displays.push_back (morph::Gdisplay (1020, 300, "emx_pax_fgf", rhoInit, 0.0, 0.0));
+    string worldName(argv[1]);
+    string winTitle = worldName + ": emx_pax_fgf";
+    displays.push_back (morph::Gdisplay (1020, 300, winTitle.c_str(), rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (1020, 300, "rhoA_rhoB_rhoC", rhoInit, 0.0, 0.0));
+    winTitle = worldName + ": rhoA_rhoB_rhoC";
+    displays.push_back (morph::Gdisplay (1020, 300, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (1700, 300, "a[0] to a[4]", rhoInit, 0.0, 0.0));
+    winTitle = worldName + ": a[0] to a[4]";
+    displays.push_back (morph::Gdisplay (1700, 300, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
-    displays.push_back (morph::Gdisplay (1700, 300, "c[0] to c[4]", rhoInit, 0.0, 0.0));
+    winTitle = worldName + ": c[0] to c[4]";
+    displays.push_back (morph::Gdisplay (1700, 300, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
