@@ -11,7 +11,7 @@
 #include <iomanip>
 #include <cmath>
 
-//#include <omp.h>
+#include <omp.h>
 
 #define DEBUG 1
 #define DBGSTREAM std::cout
