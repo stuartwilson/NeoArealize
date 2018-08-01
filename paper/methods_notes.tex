@@ -214,7 +214,13 @@ J_i(x, t) = D \frac{\partial a_i(x, t)}{\partial x} - a_i
 \end{equation}
 
 Note that (unlike in the original paper) I have been explicit about
-the space and time dependence of the state variables $a_i$, $c_i$, $J_i$, $n$, $\rho_A$, $\rho_B$ and $\rho_C$.
+the space and time dependence of the state variables $a_i$, $c_i$,
+$J_i$, $n$, $\rho_A$, $\rho_B$ and $\rho_C$. Note also that
+$i$ \emph{always} refers to the thalamo-cortial connection type; there
+is one equation system for each connection type. Keep this in mind
+when reading the sums in the maths below. Note finally that I've not
+defined all the terms in this working document, but I've used the same
+variable names as in the paper~\cite{karbowski_model_2004}.
 
 \section{Two dimensional system}
 
@@ -242,7 +248,7 @@ with the flux current
 \big(\gamma_{Ai} \nabla\rho_A(\mb{x}) +\gamma_{Bi} \nabla\rho_B(\mb{x}) + \gamma_{Ci} \nabla\rho_C(\mb{x}) \big)
 \end{equation}
 
-The ideal boundary conditions that I'd like to apply to these equations is:
+The boundary condition that I'd like to apply to these equations is:
 %
 \begin{equation}
 \mb{J}_i(\mb{x},t) \bigg\rvert_{boundary} = 0
@@ -297,13 +303,13 @@ $\mb{f}$ over the area of a hexagon; $\mb{f}_0$ is the average value
 of the vector field at the centre of the hexagon;
 $\mb{f}_1$--$\mb{f}_6$ are the average values of the field in the 6
 neighbouring hexagons. The contour integral can be discretized for
-this hexagonal region, which has area $\Omega$:
+this hexagonal region, which has area $\Omega$ and a side length $v$:
 %
 \begin{equation}
 \begin{split}
-\frac{1}{\Omega} \oint_c \mb{f}\vcdot d\hat{\mathbf{n}} & \approx \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j + \mb{f}_0}{2}\vcdot d\hat{\mathbf{n}} \\
-& = \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j^x + \mb{f}_0^x}{2} \vcdot d\hat{\mathbf{n}} +  \sum_{j=1}^{6} \frac{\mb{f}_j^y + \mb{f}_0^y}{2} \vcdot d\hat{\mathbf{n}} \\
-& = \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j^x + \mb{f}_0^x}{2} \cos (60\times(j-1)) + \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j^y + \mb{f}_0^y}{2} \sin (60\times(j-1)) \\
+\frac{1}{\Omega} \oint_c \mb{f}\vcdot d\hat{\mathbf{n}} & \approx \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j + \mb{f}_0}{2}\vcdot \hat{\mb{n}}\;v \\
+& = \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j^x + \mb{f}_0^x}{2} \vcdot \hat{\mb{n}}\;v +  \sum_{j=1}^{6} \frac{\mb{f}_j^y + \mb{f}_0^y}{2} \vcdot \hat{\mb{n}}\;v \\
+& = \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j^x + \mb{f}_0^x}{2} \cos (60\times(j-1))\;v + \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j^y + \mb{f}_0^y}{2} \sin (60\times(j-1))\;v \\
 \end{split}
 \end{equation}
 
@@ -378,15 +384,32 @@ D \nabla\vcdot\nabla a_i(\mb{p}_0,t) = D\frac{2}{3d^2} \sum_{j=1}^{6}\big(a_i(\m
 \end{equation}
 %
 where $d$ is the centre-to-centre distance between hexes in the
-grid. Applying Gauss's Theorem again, the computation of
-$a_i(\mb{p}_0,t)\nabla\vcdot\mb{g}(\mb{p}_0)$ can be written (using the fact that the area of a regular hexagon in a lattice with spacing $d$ is $\frac{\sqrt{3}}{2}d^2$):
+grid. Let's work it through. In the following, $v$ is the length of
+each of the 6 edges of the hexagon's perimeter and $v =
+d/\sqrt{3}$. $d\gamma$ is an infinitessimally small distance along the
+perimeter of the hexagon. The area of each hexagon in the lattice is
+$\frac{\sqrt{3}}{2}d^2$.
+
+\begin{equation}
+\begin{split}
+\frac{1}{\Omega} \iint_A \nabla\vcdot\nabla a_i(\mb{x}) dxdy & = \frac{1}{\Omega} \oint_c \frac{\partial a_i}{\partial \hat{\mb{n}}} d\gamma \\
+& \approx \frac{1}{\Omega} \sum_{j=1}^6 \frac{\partial a_i(\mb{p}_j)}{\partial \hat{\mb{n}}} \bigg\rvert_{mid} v \\
+& = \frac{2}{\sqrt{3} d^2} \sum_{j=1}^6 \frac{a_i(\mb{p}_j) - a_i(\mb{p}_0)}{d} \frac{d}{\sqrt{3}} \\
+& = \frac{2}{3 d^2} \sum_{j=1}^6 \big(a_i(\mb{p}_j) - a_i(\mb{p}_0)\big)
+\end{split}
+\end{equation}
+
+Applying Gauss's Theorem to the second term, the computation of
+$a_i(\mb{p}_0,t)\nabla\vcdot\mb{g}(\mb{p}_0)$ can be written out in a
+similar way:
 %
 \begin{equation}
 \begin{split}
 \frac{1}{\Omega} \iint_A a_i\nabla\vcdot\mb{g}\;dxdy & = \frac{a_i(\mb{p}_0)}{\Omega}  \oint_c \mb{g}\vcdot d\hat{\mathbf{n}} \\
-& \approx \frac{a_i(\mb{p}_0,t)}{\Omega} \sum_{j=1}^{6} \frac{\mb{g}_j + \mb{g}_0}{2}\vcdot d\hat{\mathbf{n}} \\
-& = \frac{2 a_i(\mb{p}_0,t)}{\sqrt{3}d^2} \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \vcdot d\hat{\mathbf{n}} + \frac{1}{\Omega}  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \vcdot d\hat{\mathbf{n}} \bigg) \\
-& = \frac{a_i(\mb{p}_0,t)}{\sqrt{3}d^2} \bigg( \sum_{j=1}^{6} \big(\mb{g}_j^x + \mb{g}_0^x\big) \cos (60\times(j-1)) + \sum_{j=1}^{6} \big({\mb{g}_j^y + \mb{g}_0^y}\big) \sin (60\times(j-1)) \bigg) \\
+& \approx \frac{a_i(\mb{p}_0,t)}{\Omega} \sum_{j=1}^{6} \frac{\mb{g}_j + \mb{g}_0}{2}\vcdot \hat{\mb{n}}\;v \\
+& = \frac{2 a_i(\mb{p}_0,t)v}{\sqrt{3}d^2} \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \vcdot  \hat{\mb{n}} + \frac{1}{\Omega}  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \vcdot  \hat{\mb{n}} \bigg) \\
+& = \frac{2 a_i(\mb{p}_0,t)d}{\sqrt{3}d^2\sqrt{3}} \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \vcdot  \hat{\mb{n}} + \frac{1}{\Omega}  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \vcdot  \hat{\mb{n}} \bigg) \\
+& = \frac{a_i(\mb{p}_0,t)}{3d} \bigg( \sum_{j=1}^{6} \big(\mb{g}_j^x + \mb{g}_0^x\big) \cos (60\times(j-1)) + \sum_{j=1}^{6} \big({\mb{g}_j^y + \mb{g}_0^y}\big) \sin (60\times(j-1)) \bigg) \\
 \end{split}
 \end{equation}
 %
@@ -396,48 +419,14 @@ scalar product of two vector fields which I'll carry out simply with
 Cartesian $x$ and $y$ components - so I'll re-use my spacegrad2D
 function to find $\nabla a_i$.
 
-One possible advantage of using this method over the first is that
-more of the divergence of $\mb{J}$ is computed by means of sums and less by
-means of gradient approximations.
+I think that the advantage of separating this computation out is that
+I can ensure that $\mb{J}$ resulting from the first term remains 0, by
+the ghost cell method, then I can tailor $\mb{g}(\mb{x})$ so that it,
+and its normal derivative go to 0 at the boundary, ensuring that the
+second and third terms also contribute nothing to $\mb{J}$ at the
+boundary. To do this, I'll apply a fairly sharp logistic function
+based on distance to the boundary to $\mb{g}(\mb{x})$.
 
-I think this means that I can ensure that $\mb{J}$ resulting from the
-first two terms remains 0, and then I can tailor $\mb{g}(\mb{x})$ so
-that it goes to 0 at the boundary, ensuring that the third term
-doesn't contribute to $\mb{J}$ at the boundary.
-
-\section{Boundary Conditions}
-
-We wish to implement no-flux boundary conditions on the equation
-system specified by Eqs.~\ref{eq:Karb2D_dc}-\ref{eq:Karb2D_J} to
-ensure that neither axonal branches, nor the number of thalamocortical
-connections changes across the boundary. This is equivalent to stating
-that the flux of axonal branches is zero at the boundary
-\begin{equation}\label{eq:idealbc}
-\mb{J}_i(\mb{x}, t) \bigg\rvert_{boundary} = 0
-\end{equation}
-From Eq.~\ref{eq:Karb2D_J}:
-\begin{equation}
-\mb{J}_i(\mb{x},t)\bigg\rvert_{boundary} = \Big[ D \nabla a_i(\mb{x},t) - a_i
-\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B
-+ \gamma_{Ci} \nabla\rho_C \big) \Big]  \bigg\rvert_{boundary}
- = 0
-\end{equation}
-
-The question is, how to ensure this? Can I set the value of $a_i$ in a
-ghost cell so that:
-
-\begin{equation}
-D \nabla a_i(\mb{x},t)\bigg\rvert_{boundary} =  a_i
-\big(\gamma_{Ai} \nabla\rho_A +\gamma_{Bi} \nabla\rho_B
-+ \gamma_{Ci} \nabla\rho_C \big)\bigg\rvert_{boundary}
-\end{equation}
-
-is true? Alternatively, can I brute-force the boundary hexes to have
-$\nabla\vcdot\mb{J}_i(\mb{x}) = 0$ or $\mb{J}_i(\mb{x}) = 0$ at all
-times?
-
-My current hope is that approach 2 for computing the divergence of
-$\mb{J}$ will allow me to ensure $\mb{J}$ remains 0 on the boundary.
 
 %
 % BIBLIOGRAPHY
