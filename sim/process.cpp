@@ -11,6 +11,8 @@
 #include <iomanip>
 #include <cmath>
 
+//#include <omp.h>
+
 #define DEBUG 1
 #define DBGSTREAM std::cout
 #include <morph/MorphDbg.h>
@@ -188,18 +190,18 @@ public:
     float dirfgf = -0.785; // norm 0
     //@}
 
-    double sigmaA = 0.2;
-    double sigmaB = 0.2;
+    double sigmaA = 0.1;
+    double sigmaB = 0.1;
     double sigmaC = 0.2;
 
-    double kA = 0.58;
-    double kB = 0.9;
-    double kC = 0.55;
+    double kA = 0.1;
+    double kB = 6;
+    double kC = 0.9;
 
-    double theta1 = 0.77;
-    double theta2 = 0.5;
-    double theta3 = 0.39;
-    double theta4 = 0.08;
+    double theta1 = 0.1; // 0.77 orig.
+    double theta2 = 0.4; // 0.5
+    double theta3 = 0.6; // 0.39
+    double theta4 = 0.1; // 0.08
 
     //@} end factor expression dynamics parameters
 
@@ -319,10 +321,25 @@ public:
      */
     void noiseify_vector_vector (vector<vector<double> >& vv) {
         for (unsigned int i = 0; i<this->N; ++i) {
+#define ZERO_TOWARDS_EDGE 1
+#ifdef ZERO_TOWARDS_EDGE
+            for (auto h : this->hg->hexen) {
+                // boundarySigmoid. Jumps sharply (100, larger is
+                // sharper) over length scale 0.05 to 1. So if
+                // distance from boundary > 0.05, noise has normal
+                // value. Close to boundary, noise is less.
+                vv[i][h.vi] = morph::Tools::randDouble() * 0.1;// + 0.8;
+                if (h.distToBoundary > -0.5) { // It's possible that distToBoundary is set to -1.0
+                    double bSig = 1.0 / ( 1.0 + exp (-100.0*(h.distToBoundary-0.01)) ); // 0.05!
+                    vv[i][h.vi] = vv[i][h.vi] * bSig;
+                }
+            }
+#else
             for (unsigned int h = 0; h < this->nhex; ++h) {
                 // Note the model-specific choice of multiplier and offset here:
                 vv[i][h] = morph::Tools::randDouble() * 0.1 + 0.8;
             }
+#endif
         }
     }
 
@@ -340,6 +357,8 @@ public:
         ReadCurves r("./trial.svg");
         // Set the boundary in the HexGrid
         this->hg->setBoundary (r.getCorticalPath());
+        // Compute the distances from the boundary
+        this->hg->computeDistanceToBoundary();
         // Vector size comes from number of Hexes in the HexGrid
         this->nhex = this->hg->num();
         // Spatial dx comes from the HexGrid, too.
@@ -433,6 +452,18 @@ public:
 
         // Having computed gradients, build this->g; has to be done once only.
         for (unsigned int i=0; i<this->N; ++i) {
+#ifdef ZERO_TOWARDS_EDGE
+            for (auto h : this->hg->hexen) {
+                // Sigmoid/logistic fn params: 100 sharpness, 0.01 dist offset from boudnary
+                double bSig = 1.0 / ( 1.0 + exp (-100.0*(h.distToBoundary-0.02)) );
+                this->g[i][0][h.vi] = (this->gammaA[i] * this->grad_rhoA[0][h.vi]
+                                    + this->gammaB[i] * this->grad_rhoB[0][h.vi]
+                                    + this->gammaC[i] * this->grad_rhoC[0][h.vi]) * bSig;
+                this->g[i][1][h.vi] = (this->gammaA[i] * this->grad_rhoA[1][h.vi]
+                                    + this->gammaB[i] * this->grad_rhoB[1][h.vi]
+                                    + this->gammaC[i] * this->grad_rhoC[1][h.vi]) * bSig;
+            }
+#else
             for (unsigned int h=0; h<this->nhex; ++h) {
                 // this->g is what I called g(x) in my methods writeup.
                 this->g[i][0][h] = this->gammaA[i] * this->grad_rhoA[0][h]
@@ -442,6 +473,7 @@ public:
                     + this->gammaB[i] * this->grad_rhoB[1][h]
                     + this->gammaC[i] * this->grad_rhoC[1][h];
             }
+#endif
         }
     }
 
@@ -670,6 +702,7 @@ public:
         double csum = 0.0;
         for (auto h : this->hg->hexen) {
             n[h.vi] = 0; // whoops forgot this!
+            #pragma omp parallel for
             for (unsigned int i=0; i<N; ++i) {
                 n[h.vi] += c[i][h.vi];
             }
@@ -687,12 +720,14 @@ public:
         // Pre-compute intermediate val:
         // FIXME Could precompute betaterm first, then use it in this avoiding more pow(a, k)s
         for (unsigned int i=0; i<this->N; ++i) {
+            #pragma omp parallel for
             for (unsigned int h=0; h<this->nhex; ++h) {
                 this->alpha_c_beta_na[i][h] = alpha[i] * c[i][h] - beta[i] * n[h] * pow (a[i][h], k);
             }
         }
 
         // Runge-Kutta:
+        #pragma omp parallel for
         for (unsigned int i=0; i<this->N; ++i) {
 
             DBG2 ("alpha_c_beta_na["<<i<<"][0] = " << this->alpha_c_beta_na[i][0]);
@@ -737,6 +772,7 @@ public:
         }
 
         // 3. Do integration of c
+        #pragma omp parallel for
         for (unsigned int i=0; i<this->N; ++i) {
 
             for (unsigned int h=0; h<nhex; h++) {
@@ -781,6 +817,10 @@ public:
     void plot (vector<morph::Gdisplay>& disps) {
         this->plot_f (this->a, disps[2]);
         this->plot_f (this->c, disps[3]);
+
+        // To enable examination, keep replotting these:
+        this->plotchemo (disps);
+        this->plotexpression (disps);
     }
 
     /*!
@@ -827,8 +867,12 @@ public:
         disp.resetDisplay (fix, eye, rot);
         for (unsigned int i = 0; i<this->N; ++i) {
             for (auto h : this->hg->hexen) {
+#ifdef PLOT_WITH_Z
+                disp.drawHex (h.position(), offset, (h.d/2.0f), norm_a[i][h.vi]);
+#else
                 array<float,3> cl_a = morph::Tools::getJetColorF (norm_a[i][h.vi]);
                 disp.drawHex (h.position(), offset, (h.d/2.0f), cl_a);
+#endif
             }
             offset[0] += hgwidth + (hgwidth/20);
         }
@@ -888,6 +932,17 @@ public:
         array<float,3> offset2 = { 0.0f, 0.0f, 0.0f };
         array<float,3> offset3 = { hgwidth+(hgwidth/20), 0.0f, 0.0f };
 
+#ifdef PLOT_EXPRESSION_WITH_Z
+        for (auto h : this->hg->hexen) {
+            disps[0].drawHex (h.position(), offset1, (h.d/2.0f), norm_emx[h.vi]);
+        }
+        for (auto h : this->hg->hexen) {
+            disps[0].drawHex (h.position(), offset2, (h.d/2.0f), norm_pax[h.vi]);
+        }
+        for (auto h : this->hg->hexen) {
+            disps[0].drawHex (h.position(), offset3, (h.d/2.0f), norm_fgf[h.vi]);
+        }
+#else
         for (auto h : this->hg->hexen) {
             array<float,3> cl_emx = morph::Tools::getJetColorF (norm_emx[h.vi]);
             disps[0].drawHex (h.position(), offset1, (h.d/2.0f), cl_emx);
@@ -900,9 +955,9 @@ public:
             array<float,3> cl_fgf = morph::Tools::getJetColorF (norm_fgf[h.vi]);
             disps[0].drawHex (h.position(), offset3, (h.d/2.0f), cl_fgf);
         }
+#endif
         disps[0].redrawDisplay();
     }
-
     /*!
      * Plot concentrations of chemo-attractor molecules A, B and C.
      */
@@ -955,6 +1010,19 @@ public:
 
         // Step through vectors or iterate through list? The latter should be just fine here.
         disps[1].resetDisplay (fix, eye, rot);
+#ifdef PLOT_CHEMO_WITH_Z
+        for (auto h : this->hg->hexen) {
+            disps[1].drawHex (h.position(), offset1, (h.d/2.0f), norm_rhoA[h.vi]);
+        }
+
+        for (auto h : this->hg->hexen) {
+            disps[1].drawHex (h.position(), offset2, (h.d/2.0f), norm_rhoB[h.vi]);
+        }
+
+        for (auto h : this->hg->hexen) {
+            disps[1].drawHex (h.position(), offset3, (h.d/2.0f), norm_rhoC[h.vi]);
+        }
+#else
         for (auto h : this->hg->hexen) {
             array<float,3> cl_rhoA = morph::Tools::getJetColorF (norm_rhoA[h.vi]);
             disps[1].drawHex (h.position(), offset1, (h.d/2.0f), cl_rhoA);
@@ -969,6 +1037,7 @@ public:
             array<float,3> cl_rhoC = morph::Tools::getJetColorF (norm_rhoC[h.vi]);
             disps[1].drawHex (h.position(), offset3, (h.d/2.0f), cl_rhoC);
         }
+#endif
         disps[1].redrawDisplay();
     }
 
@@ -1121,17 +1190,20 @@ public:
      * for a long time.
      */
     void runExpressionDynamics (vector<morph::Gdisplay>& displays) {
+        #pragma omp parallel for
         for (unsigned int t=0; t<100000; ++t) { // 300000 matches Stuart's 1D Karbowski model
             for (auto h : this->hg->hexen) {
                 emx[h.vi] += tau_emx * (-emx[h.vi] + eta_emx[h.vi] / (1. + w2 * fgf[h.vi] + v2 * pax[h.vi]));
                 pax[h.vi] += tau_pax * (-pax[h.vi] + eta_pax[h.vi] / (1. + v1 * emx[h.vi]));
                 fgf[h.vi] += tau_fgf * (-fgf[h.vi] + eta_fgf[h.vi] / (1. + w1 * emx[h.vi]));
             }
-            if (t%1000 == 0) {
-                DBG ("Plot for t=" << t);
-                this->plotexpression (displays);
-            }
+            // Incompatible with parallel:
+            //if (t%1000 == 0) {
+            //    DBG ("Plot for t=" << t);
+            //    this->plotexpression (displays);
+            //}
         }
+        this->plotexpression (displays);
     }
 
     /*!
@@ -1139,6 +1211,7 @@ public:
      */
     void populateChemoAttractants (vector<morph::Gdisplay>& displays) {
         // chemo-attraction gradient. cf Fig 1 of Karb 2004
+        #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
             this->rhoA[h] = (kA/2.)*(1.+tanh((fgf[h]-theta1)/sigmaA));
             this->rhoB[h] = (kB/2.)*(1.+tanh((theta2-fgf[h])/sigmaB))*(kB/2.)*(1.+tanh((fgf[h]-theta3)/sigmaB));
