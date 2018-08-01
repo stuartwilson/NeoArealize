@@ -186,8 +186,8 @@ public:
      */
     //@{
     float diremx = 3.141593;
-    float dirpax = 0.785; // norm 0
-    float dirfgf = -0.785; // norm 0
+    float dirpax = 1.2; // norm 0
+    float dirfgf = 0; // norm 0
     //@}
 
     double sigmaA = 0.1;
@@ -236,7 +236,7 @@ public:
      * Hex to hex distance. Populate this from hg.d after hg has been
      * initialised.
      */
-    double dx = 1.0;
+    double d = 1.0;
 
     /*!
      * Memory to hold an intermediate result
@@ -361,8 +361,8 @@ public:
         this->hg->computeDistanceToBoundary();
         // Vector size comes from number of Hexes in the HexGrid
         this->nhex = this->hg->num();
-        // Spatial dx comes from the HexGrid, too.
-        this->dx = this->hg->getd();
+        // Spatial d comes from the HexGrid, too.
+        this->d = this->hg->getd();
 
         // Resize and zero-initialise the various containers
         this->resize_vector_vector (this->c);
@@ -1064,12 +1064,128 @@ public:
 
 // Stable with dt = 0.0001;
 #define VECTOR_CALCULUS_EXPANSION_METHOD 1
+//#define VECTOR_CALCULUS_EXPANSION_METHOD_BOUNDARY_FORCED 1
 // Stable(ish) with dt = 0.001;
 //#define NAIVE_METHOD_WITH_BOUNDARY_TESTING 1
 // Unstable
 //#define NAIVE_METHOD 1
 
 #ifdef VECTOR_CALCULUS_EXPANSION_METHOD
+        // Three terms to compute; see Eq. 14 in methods_notes.pdf
+
+        // Compute gradient of a_i(x), for use computing the third term, below.
+        this->spacegrad2D (fa, this->grad_a[i]);
+
+        for (auto h : this->hg->hexen) {
+            // 1. The D Del^2 a_i term
+            // Compute the sum around the neighbours
+            double thesum = -6 * fa[h.vi];
+            if (h.has_ne) {
+                thesum += fa[h.ne->vi];
+            } else {
+                // Apply boundary condition
+            }
+            if (h.has_nne) {
+                thesum += fa[h.nne->vi];
+            } else {
+                thesum += fa[h.vi]; // A ghost neighbour-east with same value as Hex_0
+            }
+            if (h.has_nnw) {
+                thesum += fa[h.nnw->vi];
+            } else {
+                thesum += fa[h.vi];
+            }
+            if (h.has_nw) {
+                thesum += fa[h.nw->vi];
+            } else {
+                thesum += fa[h.vi];
+            }
+            if (h.has_nsw) {
+                thesum += fa[h.nsw->vi];
+            } else {
+                thesum += fa[h.vi];
+            }
+            if (h.has_nse) {
+                thesum += fa[h.nse->vi];
+            } else {
+                thesum += fa[h.vi];
+            }
+            // Multiply bu 2D/3d^2
+            double term1 = (this->D * 2) / (3 * this->d * this->d) * thesum;
+
+            // 2. The a div(g) term. Two sums for this.
+            double term2 = 0.0;
+            // First sum
+            if (h.has_ne) {
+                term2 += /*cos (0)*/ (this->g[i][0][h.ne->vi] + this->g[i][0][h.vi]);
+            } else {
+                // Boundary condition _should_ be satisfied by
+                // sigmoidal roll-off of g towards the boundary, so
+                // add only g[i][0][h.vi]
+                term2 += /*cos (0)*/ (this->g[i][0][h.vi]);
+            }
+            if (h.has_nne) {
+                term2 += /*cos (60)*/ 0.5 * (this->g[i][0][h.nne->vi] + this->g[i][0][h.vi]);
+            } else {
+                term2 += /*cos (60)*/ 0.5 * (this->g[i][0][h.vi]);
+            }
+            if (h.has_nnw) {
+                term2 -= /*cos (120)*/ 0.5 * (this->g[i][0][h.nnw->vi] + this->g[i][0][h.vi]);
+            } else {
+                term2 -= /*cos (120)*/ 0.5 * (this->g[i][0][h.vi]);
+            }
+            if (h.has_nw) {
+                term2 -= /*cos (180)*/ (this->g[i][0][h.nw->vi] + this->g[i][0][h.vi]);
+            } else {
+                term2 -= /*cos (180)*/ (this->g[i][0][h.vi]);
+            }
+            if (h.has_nsw) {
+                term2 -= /*cos (240)*/ 0.5 * (this->g[i][0][h.nsw->vi] + this->g[i][0][h.vi]);
+            } else {
+                term2 -= /*cos (240)*/ 0.5 * (this->g[i][0][h.vi]);
+            }
+            if (h.has_nse) {
+                term2 += /*cos (300)*/ 0.5 * (this->g[i][0][h.nse->vi] + this->g[i][0][h.vi]);
+            } else {
+                term2 += /*cos (300)*/ 0.5 * (this->g[i][0][h.vi]);
+            }
+            // 2nd sum
+            //term2 += sin (0) * (this->g[i][1][h.ne->vi] + this->g[i][1][h.vi]);
+            if (h.has_nne) {
+                term2 += /*sin (60)*/ R3_OVER_2 * (this->g[i][1][h.nne->vi] + this->g[i][1][h.vi]);
+            } else {
+                term2 += /*sin (60)*/ R3_OVER_2 * (this->g[i][1][h.vi]);
+            }
+            if (h.has_nnw) {
+                term2 += /*sin (120)*/ R3_OVER_2 * (this->g[i][1][h.nnw->vi] + this->g[i][1][h.vi]);
+            } else {
+                term2 += /*sin (120)*/ R3_OVER_2 * (this->g[i][1][h.vi]);
+            }
+            //term2 += sin (180) * (this->g[i][1][h.nw->vi] + this->g[i][1][h.vi]);
+            if (h.has_nsw) {
+                term2 -= /*sin (240)*/ R3_OVER_2 * (this->g[i][1][h.nsw->vi] + this->g[i][1][h.vi]);
+            } else {
+                term2 -= /*sin (240)*/ R3_OVER_2 * (this->g[i][1][h.vi]);
+            }
+            if (h.has_nse) {
+                term2 -= /*sin (300)*/ R3_OVER_2 * (this->g[i][1][h.nse->vi] + this->g[i][1][h.vi]);
+            } else {
+                term2 -= /*sin (300)*/ R3_OVER_2 * (this->g[i][1][h.vi]);
+            }
+
+            term2 /= (3.0 * this->d);
+            term2 *= fa[h.vi];
+
+            // 3. Third term is this->g . grad a_i. Should not
+            // contribute to J, as g(x) decays towards boundary.
+            double term3 = this->g[i][0][h.vi] * this->grad_a[i][0][h.vi]
+                + this->g[i][1][h.vi] * this->grad_a[i][1][h.vi];
+
+            this->divJ[i][h.vi] = term1 + term2 + term3;
+        }
+#endif
+
+#ifdef VECTOR_CALCULUS_EXPANSION_METHOD_BOUNDARY_FORCED
         // Three terms to compute; see Eq. 14 in methods_notes.pdf
 
         // Compute gradient of a_i(x), for use computing the third term, below.
@@ -1091,8 +1207,7 @@ public:
                 thesum += fa[h.nsw->vi];
                 thesum += fa[h.nse->vi];
                 // Multiply bu 2D/3d^2
-                double d = this->hg->getd();
-                double term1 = (this->D * 2) / (3 * d * d) * thesum;
+                double term1 = (this->D * 2) / (3 * this->d * this->d) * thesum;
 
                 // 2. The a div(g) term. Two sums for this.
                 double term2 = 0.0;
@@ -1264,6 +1379,9 @@ public:
 
 }; // RD_2D_Karb
 
+// Define this to run without the python server. Run as:
+// process world00 logs/log00.txt 1
+#define NO_NETWORKING 1
 
 int main (int argc, char **argv)
 {
@@ -1305,8 +1423,11 @@ int main (int argc, char **argv)
     } catch (const exception& e) {
         cerr << "Exception initialising RD_2D_Karb object: " << e.what() << endl;
     }
-
+#ifdef NO_NETWORKING
+    morph::World W(argv[1], argv[2], atoi(argv[3]), M.dt);
+#else
     morph::World W(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]), M.dt);
+#endif
 
     // Keep track of the frame number
     unsigned int frameN = 0;
@@ -1318,6 +1439,7 @@ int main (int argc, char **argv)
 
     // Start the loop
     bool doing = true;
+    bool do_a_step = true;
     while (doing) {
 
         std::stringstream TIMEss;
@@ -1333,6 +1455,7 @@ int main (int argc, char **argv)
 
         // Check for a command from the model world
         vector<string> command;
+#ifndef NO_NETWORKING
         string messageI = W.master.exchange (out.str().c_str());
         stringstream ss(messageI);
         while (ss.good()) {
@@ -1341,7 +1464,20 @@ int main (int argc, char **argv)
             command.push_back (substr);
         }
         ss.clear();
+#else
+        command.push_back ("1");
+#endif
 
+#ifdef NO_NETWORKING
+        // Force step/plot/step/plot etc.
+        if (do_a_step == true) {
+            command[0] = "1";
+            do_a_step = false;
+        } else {
+            command[0] = "2";
+            do_a_step = true;
+        }
+#endif
         // Interpret commands:
         switch (stoi(command[0])) {
 
@@ -1353,10 +1489,12 @@ int main (int argc, char **argv)
             for (unsigned int i=0; i<displays.size(); i++) {
                 displays[i].closeDisplay();
             }
+#ifndef NO_NETWORKING
             W.master.closeSocket();
             for (unsigned int i=0; i<W.ports.size(); i++) {
                 W.ports[i].closeSocket();
             }
+#endif
             doing = false;
             break;
         }
