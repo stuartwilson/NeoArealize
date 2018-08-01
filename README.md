@@ -28,3 +28,11 @@ To run:
 ```bash
 python sim2.py
 ```
+
+or, more recently, as I've removed the need for the sim.py master program, just
+
+```bash
+./build/sim/process w0 logs/w0 1
+```
+where w0 is the sim name, logs/w0 will be the logged output and 1 is a seed
+for the random number generator.
