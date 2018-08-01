@@ -9,8 +9,8 @@ from math import *
 import numpy as np
 
 basePort = 8000
-#worlds = [P.pTemp('build/sim/process2','world00','logs/log00',1,basePort+0),
-#          P.pTemp('build/sim/process2','world01','logs/log01',2,basePort+1)]
+#worlds = [P.pTemp('build/sim/process','world0','logs/log0',1,basePort+0),
+#          P.pTemp('build/sim/process','world1','logs/log1',2,basePort+1)]
 worlds = [P.pTemp('build/sim/process','world00','logs/log00',1,basePort+0)]
 
 # These are the diffusion constants
@@ -33,6 +33,7 @@ for i,w in enumerate(worlds):
 '''
 
 # MAIN SIMULATION LOOP
+t1 = 1
 for t in range(100000):
 
     for i,w in enumerate(worlds):
@@ -44,8 +45,9 @@ for t in range(100000):
             # w.stream('3,') #Save image to file
 
     # Ask for a keystroke to move to the next image.
-    #if t > 47:
+    #if t > t1:
     #    a = raw_input ('Press key to advance to next step...')
+    #    t1 = t1+3
 
 ''' # Uncomment to save
 for i,w in enumerate(worlds):
