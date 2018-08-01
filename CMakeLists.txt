@@ -21,7 +21,8 @@ else()
 endif()
 
 # Add the host definition to CXXFLAGS along with other switches
-set(CMAKE_CXX_FLAGS "${MORPH_HOST_DEFINITION} -Wall -std=c++11")
+#set(CMAKE_CXX_FLAGS "${MORPH_HOST_DEFINITION} -Wall -g -std=c++11 -fopenmp")
+set(CMAKE_CXX_FLAGS "${MORPH_HOST_DEFINITION} -Wall -g -std=c++11")
 
 # Lib finding - we have to do this, so that the correct include paths
 # are present for OpenGL, OpenCV, etc; they're all included by
