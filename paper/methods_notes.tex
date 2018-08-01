@@ -250,6 +250,8 @@ The ideal boundary conditions that I'd like to apply to these equations is:
 %
 to agree with the boundary condition applied in the paper for the 1D system.
 
+\subsection{Computing div J: approach 1}
+
 In order to compute $\nabla\vcdot\mb{J}_i(\mb{x},t)$, I need to do
 a little work. First, I point out that
 %
@@ -264,8 +266,6 @@ simulation, it is time-invariant. $\mb{J}_i$ is thus:
 \begin{equation}\label{eq:J}
 \mb{J}_i(\mb{x},t) = D \nabla a_i(\mb{x},t) - a_i \mb{g}(\mb{x})
 \end{equation}
-
-\subsection{Computing div J: approach 1}
 
 Taking the divergence of Eq.~\ref{eq:J}:
 %
@@ -292,21 +292,28 @@ the boundary:
 See, for example \cite{george_b._arfken_mathematical_1995},
 Sect.~1.11, p 58.
 
-The contour integral can be discretized:
+This can be used to find the average value of the divergence of
+$\mb{f}$ over the area of a hexagon; $\mb{f}_0$ is the average value
+of the vector field at the centre of the hexagon;
+$\mb{f}_1$--$\mb{f}_6$ are the average values of the field in the 6
+neighbouring hexagons. The contour integral can be discretized for
+this hexagonal region, which has area $\Omega$:
 %
 \begin{equation}
 \begin{split}
-\oint_c \mb{f}\vcdot d\hat{\mathbf{n}} & \approx \sum_{j=1}^{6} \frac{\mb{f}_j + \mb{f}_0}{2}\vcdot d\hat{\mathbf{n}} \\
-& =  \sum_{j=1}^{6} \frac{\mb{f}_j^x + \mb{f}_0^x}{2} \vcdot d\hat{\mathbf{n}} +  \sum_{j=1}^{6} \frac{\mb{f}_j^y + \mb{f}_0^y}{2} \vcdot d\hat{\mathbf{n}} \\
-& =  \sum_{j=1}^{6} \frac{\mb{f}_j^x + \mb{f}_0^x}{2} \cos (60\times(j-1)) +  \sum_{j=1}^{6} \frac{\mb{f}_j^y + \mb{f}_0^y}{2} \sin (60\times(j-1)) \\
+\frac{1}{\Omega} \oint_c \mb{f}\vcdot d\hat{\mathbf{n}} & \approx \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j + \mb{f}_0}{2}\vcdot d\hat{\mathbf{n}} \\
+& = \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j^x + \mb{f}_0^x}{2} \vcdot d\hat{\mathbf{n}} +  \sum_{j=1}^{6} \frac{\mb{f}_j^y + \mb{f}_0^y}{2} \vcdot d\hat{\mathbf{n}} \\
+& = \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j^x + \mb{f}_0^x}{2} \cos (60\times(j-1)) + \frac{1}{\Omega} \sum_{j=1}^{6} \frac{\mb{f}_j^y + \mb{f}_0^y}{2} \sin (60\times(j-1)) \\
 \end{split}
 \end{equation}
 
 An advantage to using this approach is that if it is required that the
-\emph{divergence} be 0 across the boundary then those sections of the hex
-that lie on the boundary can have $\mb{f}_j$ set equal to $\mb{f}_0$
+\emph{divergence} be 0 across the boundary then for those edges of the hex
+that lie on the boundary $\mb{f}_j$ can be set equal to $\mb{f}_0$
 (this is the ghost cell method), satisfing this boundary condition,
-whilst permitting flow through the hex parallel to the boundary.
+whilst permitting flow through the hex parallel to the
+boundary. However, it is not so easy to choose a ghost cell with
+properties that will force the \emph{value} of $\mb{f}_0$ to 0.
 
 \subsection{Computing div J: approach 2}
 
@@ -361,10 +368,10 @@ $a_i(\mb{x},t)$.
 Each of the divergences can be simplified by means of Gauss's Theorem.
 Reference \cite{lee_hexagonal_2014} presents an application of Gauss's
 Theorem to the solution of Poisson's equation, which contains a
-Laplacian term, on an hexagonal grid. The computation of our
-Laplacian, $D \nabla\vcdot\nabla a_i(\mb{x},t)$, integrated across the
-area of one hexagon located at position $\mb{p}_0$, with neighbours at
-positions $\mb{p}_1$--$\mb{p}_6$ is:
+Laplacian term, on an hexagonal grid. The computation of the mean
+value of our Laplacian, $D \nabla\vcdot\nabla a_i(\mb{x},t)$, across
+the area of one hexagon located at position $\mb{p}_0$, with
+neighbours at positions $\mb{p}_1$--$\mb{p}_6$ is:
 %
 \begin{equation}
 D \nabla\vcdot\nabla a_i(\mb{p}_0,t) = D\frac{2}{3d^2} \sum_{j=1}^{6}\big(a_i(\mb{p}_j) - a_i(\mb{p}_0)\big)
@@ -372,14 +379,14 @@ D \nabla\vcdot\nabla a_i(\mb{p}_0,t) = D\frac{2}{3d^2} \sum_{j=1}^{6}\big(a_i(\m
 %
 where $d$ is the centre-to-centre distance between hexes in the
 grid. Applying Gauss's Theorem again, the computation of
-$a_i(\mb{p}_0,t)\nabla\vcdot\mb{g}(\mb{p}_0)$ can be written:
+$a_i(\mb{p}_0,t)\nabla\vcdot\mb{g}(\mb{p}_0)$ can be written (using the fact that the area of a regular hexagon in a lattice with spacing $d$ is $\frac{\sqrt{3}}{2}d^2$):
 %
 \begin{equation}
 \begin{split}
-\iint_A a_i\nabla\vcdot\mb{g}\;dxdy & = a_i(\mb{p}_0) \oint_c \mb{g}\vcdot d\hat{\mathbf{n}} \\
-& \approx a_i(\mb{p}_0,t) \sum_{j=1}^{6} \frac{\mb{g}_j + \mb{g}_0}{2}\vcdot d\hat{\mathbf{n}} \\
-& = a_i(\mb{p}_0,t) \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \vcdot d\hat{\mathbf{n}} +  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \vcdot d\hat{\mathbf{n}} \bigg) \\
-& = a_i(\mb{p}_0,t) \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \cos (60\times(j-1)) +  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \sin (60\times(j-1)) \bigg) \\
+\frac{1}{\Omega} \iint_A a_i\nabla\vcdot\mb{g}\;dxdy & = \frac{a_i(\mb{p}_0)}{\Omega}  \oint_c \mb{g}\vcdot d\hat{\mathbf{n}} \\
+& \approx \frac{a_i(\mb{p}_0,t)}{\Omega} \sum_{j=1}^{6} \frac{\mb{g}_j + \mb{g}_0}{2}\vcdot d\hat{\mathbf{n}} \\
+& = \frac{2 a_i(\mb{p}_0,t)}{\sqrt{3}d^2} \bigg( \sum_{j=1}^{6} \frac{\mb{g}_j^x + \mb{g}_0^x}{2} \vcdot d\hat{\mathbf{n}} + \frac{1}{\Omega}  \sum_{j=1}^{6} \frac{\mb{g}_j^y + \mb{g}_0^y}{2} \vcdot d\hat{\mathbf{n}} \bigg) \\
+& = \frac{a_i(\mb{p}_0,t)}{\sqrt{3}d^2} \bigg( \sum_{j=1}^{6} \big(\mb{g}_j^x + \mb{g}_0^x\big) \cos (60\times(j-1)) + \sum_{j=1}^{6} \big({\mb{g}_j^y + \mb{g}_0^y}\big) \sin (60\times(j-1)) \bigg) \\
 \end{split}
 \end{equation}
 %
@@ -392,6 +399,11 @@ function to find $\nabla a_i$.
 One possible advantage of using this method over the first is that
 more of the divergence of $\mb{J}$ is computed by means of sums and less by
 means of gradient approximations.
+
+I think this means that I can ensure that $\mb{J}$ resulting from the
+first two terms remains 0, and then I can tailor $\mb{g}(\mb{x})$ so
+that it goes to 0 at the boundary, ensuring that the third term
+doesn't contribute to $\mb{J}$ at the boundary.
 
 \section{Boundary Conditions}
 
@@ -420,9 +432,12 @@ D \nabla a_i(\mb{x},t)\bigg\rvert_{boundary} =  a_i
 + \gamma_{Ci} \nabla\rho_C \big)\bigg\rvert_{boundary}
 \end{equation}
 
-is true? Alternatively, just brute-force the boundary hexes to have
+is true? Alternatively, can I brute-force the boundary hexes to have
 $\nabla\vcdot\mb{J}_i(\mb{x}) = 0$ or $\mb{J}_i(\mb{x}) = 0$ at all
-times.
+times?
+
+My current hope is that approach 2 for computing the divergence of
+$\mb{J}$ will allow me to ensure $\mb{J}$ remains 0 on the boundary.
 
 %
 % BIBLIOGRAPHY
