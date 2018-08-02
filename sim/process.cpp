@@ -318,11 +318,12 @@ public:
     /*!
      * Initialise this vector of vectors with noise. This is a
      * model-specific function.
+     *
+     * I apply a sigmoid to the boundary hexes, so that the noise
+     * drops away towards the edge of the domain.
      */
     void noiseify_vector_vector (vector<vector<double> >& vv) {
         for (unsigned int i = 0; i<this->N; ++i) {
-#define ZERO_TOWARDS_EDGE 1
-#ifdef ZERO_TOWARDS_EDGE
             for (auto h : this->hg->hexen) {
                 // boundarySigmoid. Jumps sharply (100, larger is
                 // sharper) over length scale 0.05 to 1. So if
@@ -334,12 +335,6 @@ public:
                     vv[i][h.vi] = vv[i][h.vi] * bSig;
                 }
             }
-#else
-            for (unsigned int h = 0; h < this->nhex; ++h) {
-                // Note the model-specific choice of multiplier and offset here:
-                vv[i][h] = morph::Tools::randDouble() * 0.1 + 0.8;
-            }
-#endif
         }
     }
 
@@ -450,9 +445,10 @@ public:
         this->spacegrad2D (this->rhoB, this->grad_rhoB);
         this->spacegrad2D (this->rhoC, this->grad_rhoC);
 
-        // Having computed gradients, build this->g; has to be done once only.
+        // Having computed gradients, build this->g; has to be done
+        // once only. Note that a sigmoid is applied so that g(x)
+        // drops to zero around the boundary of the domain.
         for (unsigned int i=0; i<this->N; ++i) {
-#ifdef ZERO_TOWARDS_EDGE
             for (auto h : this->hg->hexen) {
                 // Sigmoid/logistic fn params: 100 sharpness, 0.01 dist offset from boudnary
                 double bSig = 1.0 / ( 1.0 + exp (-100.0*(h.distToBoundary-0.02)) );
@@ -463,139 +459,6 @@ public:
                                     + this->gammaB[i] * this->grad_rhoB[1][h.vi]
                                     + this->gammaC[i] * this->grad_rhoC[1][h.vi]) * bSig;
             }
-#else
-            for (unsigned int h=0; h<this->nhex; ++h) {
-                // this->g is what I called g(x) in my methods writeup.
-                this->g[i][0][h] = this->gammaA[i] * this->grad_rhoA[0][h]
-                    + this->gammaB[i] * this->grad_rhoB[0][h]
-                    + this->gammaC[i] * this->grad_rhoC[0][h];
-                this->g[i][1][h] = this->gammaA[i] * this->grad_rhoA[1][h]
-                    + this->gammaB[i] * this->grad_rhoB[1][h]
-                    + this->gammaC[i] * this->grad_rhoC[1][h];
-            }
-#endif
-        }
-    }
-
-    /*!
-     * Compute the divergence of the vector field vf, placing the
-     * result in div_vf.
-     */
-    void divergence (array<vector<double>, 2>& vf, vector<double>& div_vf) {
-        // It's dvf_x/dx + dvf_y/dy. Our incoming vector field, vf is
-        // already in plain old x,y coordinates, but we do need to
-        // compute change of values between adjacent hexes.
-        for (auto h : this->hg->hexen) {
-            div_vf[h.vi] = 0.0;
-            if (h.d == 0.0) {
-                throw runtime_error ("h.d is unexpectedly 0.");
-            }
-            // Find x gradient of vf[0]
-            if (h.has_ne && h.has_nw) {
-                div_vf[h.vi] = (vf[0][h.ne->vi] - vf[0][h.nw->vi]) / ((double)h.d * 2.0);
-            } else if (h.has_ne) {
-                div_vf[h.vi] = (vf[0][h.ne->vi] - vf[0][h.vi]) / (double)h.d;
-            } else if (h.has_nw) {
-                div_vf[h.vi] = (vf[0][h.vi] - vf[0][h.nw->vi]) / (double)h.d;
-            } else {
-                // zero gradient in x direction as no neighbours in
-                // those directions? Or possibly use the average of
-                // the gradient between the nw,ne and sw,se neighbours
-            }
-
-            // Add on the y gradient of vf[1]
-            if (h.has_nnw && h.has_nne && h.has_nsw && h.has_nse) {
-                // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
-                div_vf[h.vi] += ((vf[1][h.nne->vi] - vf[1][h.nse->vi]) + (vf[1][h.nnw->vi] - vf[1][h.nsw->vi])) / (double)h.getV();
-
-            } else if (h.has_nnw && h.has_nne ) {
-                div_vf[h.vi] += ( (vf[1][h.nne->vi] + vf[1][h.nnw->vi]) / 2.0 - vf[1][h.vi]) / (double)h.getV();
-
-            } else if (h.has_nsw && h.has_nse) {
-                div_vf[h.vi] += (vf[1][h.vi] - (vf[1][h.nse->vi] + vf[1][h.nsw->vi]) / 2.0) / (double)h.getV();
-
-            } else if (h.has_nnw && h.has_nsw) {
-                div_vf[h.vi] += (vf[1][h.nnw->vi] - vf[1][h.nsw->vi]) / (double)h.getTwoV();
-
-            } else if (h.has_nne && h.has_nse) {
-                div_vf[h.vi] += (vf[1][h.nne->vi] - vf[1][h.nse->vi]) / (double)h.getTwoV();
-            } else {
-                // Leave grady at 0
-            }
-        }
-    }
-
-    /*!
-     * Using the boundary integral, compute the divergence of the
-     * vector field vf, placing the result in div_vf.
-     */
-    void divergence_boundary (array<vector<double>, 2>& vf, vector<double>& div_vf) {
-        // It's dvf_x/dx + dvf_y/dy. Our incoming vector field, vf is
-        // already in plain old x,y coordinates, but we do need to
-        // compute change of values between adjacent hexes.
-        for (auto h : this->hg->hexen) {
-            div_vf[h.vi] = 0.0;
-            if (h.d == 0.0) {
-                throw runtime_error ("h.d is unexpectedly 0.");
-            }
-
-            // First sum
-            if (h.has_ne) {
-                div_vf[h.vi] += /*cos (0)*/ (vf[0][h.ne->vi] + vf[0][h.vi]);
-            } else {
-                div_vf[h.vi] += (2.0 * vf[0][h.vi]);
-            }
-            if (h.has_nne) {
-                div_vf[h.vi] += /*cos (60)*/ 0.5 * (vf[0][h.nne->vi] + vf[0][h.vi]);
-            } else {
-                div_vf[h.vi] += (/*0.5 * 2.0 * */ vf[0][h.vi]);
-            }
-            if (h.has_nnw) {
-                div_vf[h.vi] -= /*cos (120)*/ 0.5 * (vf[0][h.nnw->vi] + vf[0][h.vi]);
-            } else {
-                div_vf[h.vi] -= (/*0.5 * 2.0 * */ vf[0][h.vi]);
-            }
-            if (h.has_nw) {
-                div_vf[h.vi] -= /*cos (180)*/ (vf[0][h.nw->vi] + vf[0][h.vi]);
-            } else {
-                div_vf[h.vi] -= (2.0 * vf[0][h.vi]);
-            }
-            if (h.has_nsw) {
-                div_vf[h.vi] -= /*cos (240)*/ 0.5 * (vf[0][h.nsw->vi] + vf[0][h.vi]);
-            } else {
-                div_vf[h.vi] -= (/*0.5 * 2.0 * */ vf[0][h.vi]);
-            }
-            if (h.has_nse) {
-                div_vf[h.vi] += /*cos (300)*/ 0.5 * (vf[0][h.nse->vi] + vf[0][h.vi]);
-            } else {
-                div_vf[h.vi] += (/*0.5 * 2.0 * */ vf[0][h.vi]);
-            }
-
-            // 2nd sum
-            //div_vf[h.vi] += sin (0) * (vf[1][h.ne->vi] + vf[1][h.vi]);
-            if (h.has_nne) {
-                div_vf[h.vi] += /*sin (60)*/ R3_OVER_2 * (vf[1][h.nne->vi] + vf[1][h.vi]);
-            } else {
-                div_vf[h.vi] += ROOT3 * vf[1][h.vi];
-            }
-            if (h.has_nnw) {
-                div_vf[h.vi] += /*sin (120)*/ R3_OVER_2 * (vf[1][h.nnw->vi] + vf[1][h.vi]);
-            } else {
-                div_vf[h.vi] += ROOT3 * vf[1][h.vi];
-            }
-            //div_vf[h.vi] += sin (180) * (vf[1][h.nw->vi] + vf[1][h.vi]);
-            if (h.has_nsw) {
-                div_vf[h.vi] -= /*sin (240)*/ R3_OVER_2 * (vf[1][h.nsw->vi] + vf[1][h.vi]);
-            } else {
-                div_vf[h.vi] -= ROOT3 * vf[1][h.vi];
-            }
-            if (h.has_nse) {
-                div_vf[h.vi] -= /*sin (300)*/ R3_OVER_2 * (vf[1][h.nse->vi] + vf[1][h.vi]);
-            } else {
-                div_vf[h.vi] -= ROOT3 * vf[1][h.vi];
-            }
-            div_vf[h.vi] /= 2.0;
-
         }
     }
 
@@ -625,22 +488,24 @@ public:
     void spacegrad2D (vector<double>& f, array<vector<double>, 2>& gradf) {
 
         // Note - East is positive x; North is positive y.
-        for (auto h : this->hg->hexen) {
+        #pragma omp parallel for
+        for (unsigned int ii=0; ii<this->nhex; ++ii) {
+            Hex* h = this->hg->vhexen[ii];
 
-            gradf[0][h.vi] = 0.0;
-            gradf[1][h.vi] = 0.0;
+            gradf[0][h->vi] = 0.0;
+            gradf[1][h->vi] = 0.0;
 
-            DBG2 ("(h.ri,h.gi): (" << h.ri << "," << h.gi << ")");
+            DBG2 ("(h->ri,h->gi): (" << h->ri << "," << h->gi << ")");
             // Find x gradient
-            if (h.has_ne && h.has_nw) {
-                DBG2 ("x case 1 f[h.ne]: " << f[h.ne->vi] << " - f[h.nw]" << f[h.nw->vi] << "/ h.d*2: " << (double)h.d * 2.0);
-                gradf[0][h.vi] = (f[h.ne->vi] - f[h.nw->vi]) / ((double)h.d * 2.0);
-            } else if (h.has_ne) {
-                DBG2 ("x case 2 f[h.ne]: " << f[h.ne->vi] << " - f[h]" << f[h.vi] << "/ h.d: " << (double)h.d);
-                gradf[0][h.vi] = (f[h.ne->vi] - f[h.vi]) / (double)h.d;
-            } else if (h.has_nw) {
-                DBG2 ("x case 3 f[h]: " << f[h.vi] << " - f[h.nw]" << f[h.nw->vi] << "/ h.d: " << (double)h.d);
-                gradf[0][h.vi] = (f[h.vi] - f[h.nw->vi]) / (double)h.d;
+            if (h->has_ne && h->has_nw) {
+                DBG2 ("x case 1 f[h->ne]: " << f[h->ne->vi] << " - f[h->nw]" << f[h->nw->vi] << "/ h->d*2: " << (double)h->d * 2.0);
+                gradf[0][h->vi] = (f[h->ne->vi] - f[h->nw->vi]) / ((double)h->d * 2.0);
+            } else if (h->has_ne) {
+                DBG2 ("x case 2 f[h->ne]: " << f[h->ne->vi] << " - f[h]" << f[h->vi] << "/ h->d: " << (double)h->d);
+                gradf[0][h->vi] = (f[h->ne->vi] - f[h->vi]) / (double)h->d;
+            } else if (h->has_nw) {
+                DBG2 ("x case 3 f[h]: " << f[h->vi] << " - f[h->nw]" << f[h->nw->vi] << "/ h->d: " << (double)h->d);
+                gradf[0][h->vi] = (f[h->vi] - f[h->nw->vi]) / (double)h->d;
             } else {
                 // zero gradient in x direction as no neighbours in
                 // those directions? Or possibly use the average of
@@ -648,37 +513,37 @@ public:
             }
 
             // Find y gradient
-            if (h.has_nnw && h.has_nne && h.has_nsw && h.has_nse) {
+            if (h->has_nnw && h->has_nne && h->has_nsw && h->has_nse) {
                 // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
 #ifdef DEBUG2
-                if (h.vi == 0) {
-                    double _d = (double)h.getV();
-                    double _td = (double)h.getTwoV();
+                if (h->vi == 0) {
+                    double _d = (double)h->getV();
+                    double _td = (double)h->getTwoV();
                     DBG2 ("y case 1. getV: " << _d << " getTwoV: " << _td);
                 }
 #endif
-                gradf[1][h.vi] = ((f[h.nne->vi] - f[h.nse->vi]) + (f[h.nnw->vi] - f[h.nsw->vi])) / (double)h.getV();
+                gradf[1][h->vi] = ((f[h->nne->vi] - f[h->nse->vi]) + (f[h->nnw->vi] - f[h->nsw->vi])) / (double)h->getV();
 
-            } else if (h.has_nnw && h.has_nne ) {
-                //if (h.vi == 0) { DBG ("y case 2"); }
-                gradf[1][h.vi] = ( (f[h.nne->vi] + f[h.nnw->vi]) / 2.0 - f[h.vi]) / (double)h.getV();
+            } else if (h->has_nnw && h->has_nne ) {
+                //if (h->vi == 0) { DBG ("y case 2"); }
+                gradf[1][h->vi] = ( (f[h->nne->vi] + f[h->nnw->vi]) / 2.0 - f[h->vi]) / (double)h->getV();
 
-            } else if (h.has_nsw && h.has_nse) {
-                //if (h.vi == 0) { DBG ("y case 3"); }
-                gradf[1][h.vi] = (f[h.vi] - (f[h.nse->vi] + f[h.nsw->vi]) / 2.0) / (double)h.getV();
+            } else if (h->has_nsw && h->has_nse) {
+                //if (h->vi == 0) { DBG ("y case 3"); }
+                gradf[1][h->vi] = (f[h->vi] - (f[h->nse->vi] + f[h->nsw->vi]) / 2.0) / (double)h->getV();
 
-            } else if (h.has_nnw && h.has_nsw) {
-                //if (h.vi == 0) { DBG ("y case 4"); }
-                gradf[1][h.vi] = (f[h.nnw->vi] - f[h.nsw->vi]) / (double)h.getTwoV();
+            } else if (h->has_nnw && h->has_nsw) {
+                //if (h->vi == 0) { DBG ("y case 4"); }
+                gradf[1][h->vi] = (f[h->nnw->vi] - f[h->nsw->vi]) / (double)h->getTwoV();
 
-            } else if (h.has_nne && h.has_nse) {
-                //if (h.vi == 0) { DBG ("y case 5"); }
-                gradf[1][h.vi] = (f[h.nne->vi] - f[h.nse->vi]) / (double)h.getTwoV();
+            } else if (h->has_nne && h->has_nse) {
+                //if (h->vi == 0) { DBG ("y case 5"); }
+                gradf[1][h->vi] = (f[h->nne->vi] - f[h->nse->vi]) / (double)h->getTwoV();
             } else {
                 // Leave grady at 0
             }
 
-            //if (h.vi == 0) {
+            //if (h->vi == 0) {
             //    DBG ("gradf[0/1][0]: " << gradf[0][0] << "," << gradf[1][0]);
             //}
         }
@@ -700,15 +565,16 @@ public:
         // 1. Compute Karb2004 Eq 3. (coupling between connections made by each TC type)
         double nsum = 0.0;
         double csum = 0.0;
-        for (auto h : this->hg->hexen) {
-            n[h.vi] = 0; // whoops forgot this!
-            #pragma omp parallel for
+        #pragma omp parallel for
+        for (unsigned int ii=0; ii<this->nhex; ++ii) {
+            Hex* h = this->hg->vhexen[ii];
+            n[h->vi] = 0; // whoops forgot this!
             for (unsigned int i=0; i<N; ++i) {
-                n[h.vi] += c[i][h.vi];
+                n[h->vi] += c[i][h->vi];
             }
-            csum += c[0][h.vi];
-            n[h.vi] = 1. - n[h.vi];
-            nsum += n[h.vi];
+            csum += c[0][h->vi];
+            n[h->vi] = 1. - n[h->vi];
+            nsum += n[h->vi];
         }
         if (this->stepCount % 20 == 0) {
             DBG("sum of all n is " << nsum);
@@ -768,7 +634,6 @@ public:
             DBG2 ("After RK stage 4, a[" << i << "][0]: " << a[i][0]);
 
             DBG2("Debug a["<<i<<"]");
-            //this->debug_values (a[i], 1e8);
         }
 
         // 3. Do integration of c
@@ -807,7 +672,6 @@ public:
             DBG2 ("After RK stage 4, c["<<i<<"][0]: " << c[i][0]);
 
             DBG2("Debug c["<<i<<"]");
-            //this->debug_values (c[i], 1e8);
         }
     }
 
@@ -1058,57 +922,53 @@ public:
      *
      * Inputs: this->g, fa (which is this->a[i] or a q in the RK
      * algorithm), this->D, @a i, the TC type.  Helper functions:
-     * spacegrad2D(), divergence().  Output: this->divJ
+     * spacegrad2D().  Output: this->divJ
+     *
+     * Stable with dt = 0.0001;
      */
     void compute_divJ (vector<double>& fa, unsigned int i) {
 
-// Stable with dt = 0.0001;
-#define VECTOR_CALCULUS_EXPANSION_METHOD 1
-//#define VECTOR_CALCULUS_EXPANSION_METHOD_BOUNDARY_FORCED 1
-// Stable(ish) with dt = 0.001;
-//#define NAIVE_METHOD_WITH_BOUNDARY_TESTING 1
-// Unstable
-//#define NAIVE_METHOD 1
-
-#ifdef VECTOR_CALCULUS_EXPANSION_METHOD
         // Three terms to compute; see Eq. 14 in methods_notes.pdf
 
         // Compute gradient of a_i(x), for use computing the third term, below.
         this->spacegrad2D (fa, this->grad_a[i]);
 
-        for (auto h : this->hg->hexen) {
+        #pragma omp parallel for
+        for (unsigned int ii=0; ii<this->nhex; ++ii) {
+
+            Hex* h = this->hg->vhexen[ii];
             // 1. The D Del^2 a_i term
             // Compute the sum around the neighbours
-            double thesum = -6 * fa[h.vi];
-            if (h.has_ne) {
-                thesum += fa[h.ne->vi];
+            double thesum = -6 * fa[h->vi];
+            if (h->has_ne) {
+                thesum += fa[h->ne->vi];
             } else {
                 // Apply boundary condition
             }
-            if (h.has_nne) {
-                thesum += fa[h.nne->vi];
+            if (h->has_nne) {
+                thesum += fa[h->nne->vi];
             } else {
-                thesum += fa[h.vi]; // A ghost neighbour-east with same value as Hex_0
+                thesum += fa[h->vi]; // A ghost neighbour-east with same value as Hex_0
             }
-            if (h.has_nnw) {
-                thesum += fa[h.nnw->vi];
+            if (h->has_nnw) {
+                thesum += fa[h->nnw->vi];
             } else {
-                thesum += fa[h.vi];
+                thesum += fa[h->vi];
             }
-            if (h.has_nw) {
-                thesum += fa[h.nw->vi];
+            if (h->has_nw) {
+                thesum += fa[h->nw->vi];
             } else {
-                thesum += fa[h.vi];
+                thesum += fa[h->vi];
             }
-            if (h.has_nsw) {
-                thesum += fa[h.nsw->vi];
+            if (h->has_nsw) {
+                thesum += fa[h->nsw->vi];
             } else {
-                thesum += fa[h.vi];
+                thesum += fa[h->vi];
             }
-            if (h.has_nse) {
-                thesum += fa[h.nse->vi];
+            if (h->has_nse) {
+                thesum += fa[h->nse->vi];
             } else {
-                thesum += fa[h.vi];
+                thesum += fa[h->vi];
             }
             // Multiply bu 2D/3d^2
             double term1 = (this->D * 2) / (3 * this->d * this->d) * thesum;
@@ -1116,156 +976,73 @@ public:
             // 2. The a div(g) term. Two sums for this.
             double term2 = 0.0;
             // First sum
-            if (h.has_ne) {
-                term2 += /*cos (0)*/ (this->g[i][0][h.ne->vi] + this->g[i][0][h.vi]);
+            if (h->has_ne) {
+                term2 += /*cos (0)*/ (this->g[i][0][h->ne->vi] + this->g[i][0][h->vi]);
             } else {
                 // Boundary condition _should_ be satisfied by
                 // sigmoidal roll-off of g towards the boundary, so
-                // add only g[i][0][h.vi]
-                term2 += /*cos (0)*/ (this->g[i][0][h.vi]);
+                // add only g[i][0][h->vi]
+                term2 += /*cos (0)*/ (this->g[i][0][h->vi]);
             }
-            if (h.has_nne) {
-                term2 += /*cos (60)*/ 0.5 * (this->g[i][0][h.nne->vi] + this->g[i][0][h.vi]);
+            if (h->has_nne) {
+                term2 += /*cos (60)*/ 0.5 * (this->g[i][0][h->nne->vi] + this->g[i][0][h->vi]);
             } else {
-                term2 += /*cos (60)*/ 0.5 * (this->g[i][0][h.vi]);
+                term2 += /*cos (60)*/ 0.5 * (this->g[i][0][h->vi]);
             }
-            if (h.has_nnw) {
-                term2 -= /*cos (120)*/ 0.5 * (this->g[i][0][h.nnw->vi] + this->g[i][0][h.vi]);
+            if (h->has_nnw) {
+                term2 -= /*cos (120)*/ 0.5 * (this->g[i][0][h->nnw->vi] + this->g[i][0][h->vi]);
             } else {
-                term2 -= /*cos (120)*/ 0.5 * (this->g[i][0][h.vi]);
+                term2 -= /*cos (120)*/ 0.5 * (this->g[i][0][h->vi]);
             }
-            if (h.has_nw) {
-                term2 -= /*cos (180)*/ (this->g[i][0][h.nw->vi] + this->g[i][0][h.vi]);
+            if (h->has_nw) {
+                term2 -= /*cos (180)*/ (this->g[i][0][h->nw->vi] + this->g[i][0][h->vi]);
             } else {
-                term2 -= /*cos (180)*/ (this->g[i][0][h.vi]);
+                term2 -= /*cos (180)*/ (this->g[i][0][h->vi]);
             }
-            if (h.has_nsw) {
-                term2 -= /*cos (240)*/ 0.5 * (this->g[i][0][h.nsw->vi] + this->g[i][0][h.vi]);
+            if (h->has_nsw) {
+                term2 -= /*cos (240)*/ 0.5 * (this->g[i][0][h->nsw->vi] + this->g[i][0][h->vi]);
             } else {
-                term2 -= /*cos (240)*/ 0.5 * (this->g[i][0][h.vi]);
+                term2 -= /*cos (240)*/ 0.5 * (this->g[i][0][h->vi]);
             }
-            if (h.has_nse) {
-                term2 += /*cos (300)*/ 0.5 * (this->g[i][0][h.nse->vi] + this->g[i][0][h.vi]);
+            if (h->has_nse) {
+                term2 += /*cos (300)*/ 0.5 * (this->g[i][0][h->nse->vi] + this->g[i][0][h->vi]);
             } else {
-                term2 += /*cos (300)*/ 0.5 * (this->g[i][0][h.vi]);
+                term2 += /*cos (300)*/ 0.5 * (this->g[i][0][h->vi]);
             }
             // 2nd sum
-            //term2 += sin (0) * (this->g[i][1][h.ne->vi] + this->g[i][1][h.vi]);
-            if (h.has_nne) {
-                term2 += /*sin (60)*/ R3_OVER_2 * (this->g[i][1][h.nne->vi] + this->g[i][1][h.vi]);
+            //term2 += sin (0) * (this->g[i][1][h->ne->vi] + this->g[i][1][h->vi]);
+            if (h->has_nne) {
+                term2 += /*sin (60)*/ R3_OVER_2 * (this->g[i][1][h->nne->vi] + this->g[i][1][h->vi]);
             } else {
-                term2 += /*sin (60)*/ R3_OVER_2 * (this->g[i][1][h.vi]);
+                term2 += /*sin (60)*/ R3_OVER_2 * (this->g[i][1][h->vi]);
             }
-            if (h.has_nnw) {
-                term2 += /*sin (120)*/ R3_OVER_2 * (this->g[i][1][h.nnw->vi] + this->g[i][1][h.vi]);
+            if (h->has_nnw) {
+                term2 += /*sin (120)*/ R3_OVER_2 * (this->g[i][1][h->nnw->vi] + this->g[i][1][h->vi]);
             } else {
-                term2 += /*sin (120)*/ R3_OVER_2 * (this->g[i][1][h.vi]);
+                term2 += /*sin (120)*/ R3_OVER_2 * (this->g[i][1][h->vi]);
             }
-            //term2 += sin (180) * (this->g[i][1][h.nw->vi] + this->g[i][1][h.vi]);
-            if (h.has_nsw) {
-                term2 -= /*sin (240)*/ R3_OVER_2 * (this->g[i][1][h.nsw->vi] + this->g[i][1][h.vi]);
+            //term2 += sin (180) * (this->g[i][1][h->nw->vi] + this->g[i][1][h->vi]);
+            if (h->has_nsw) {
+                term2 -= /*sin (240)*/ R3_OVER_2 * (this->g[i][1][h->nsw->vi] + this->g[i][1][h->vi]);
             } else {
-                term2 -= /*sin (240)*/ R3_OVER_2 * (this->g[i][1][h.vi]);
+                term2 -= /*sin (240)*/ R3_OVER_2 * (this->g[i][1][h->vi]);
             }
-            if (h.has_nse) {
-                term2 -= /*sin (300)*/ R3_OVER_2 * (this->g[i][1][h.nse->vi] + this->g[i][1][h.vi]);
+            if (h->has_nse) {
+                term2 -= /*sin (300)*/ R3_OVER_2 * (this->g[i][1][h->nse->vi] + this->g[i][1][h->vi]);
             } else {
-                term2 -= /*sin (300)*/ R3_OVER_2 * (this->g[i][1][h.vi]);
+                term2 -= /*sin (300)*/ R3_OVER_2 * (this->g[i][1][h->vi]);
             }
 
             term2 /= (3.0 * this->d);
-            term2 *= fa[h.vi];
+            term2 *= fa[h->vi];
 
             // 3. Third term is this->g . grad a_i. Should not
             // contribute to J, as g(x) decays towards boundary.
-            double term3 = this->g[i][0][h.vi] * this->grad_a[i][0][h.vi]
-                + this->g[i][1][h.vi] * this->grad_a[i][1][h.vi];
+            double term3 = this->g[i][0][h->vi] * this->grad_a[i][0][h->vi]
+                + this->g[i][1][h->vi] * this->grad_a[i][1][h->vi];
 
-            this->divJ[i][h.vi] = term1 + term2 + term3;
+            this->divJ[i][h->vi] = term1 + term2 + term3;
         }
-#endif
-
-#ifdef VECTOR_CALCULUS_EXPANSION_METHOD_BOUNDARY_FORCED
-        // Three terms to compute; see Eq. 14 in methods_notes.pdf
-
-        // Compute gradient of a_i(x), for use computing the third term, below.
-        this->spacegrad2D (fa, this->grad_a[i]);
-
-        for (auto h : this->hg->hexen) {
-            if (h.onBoundary() == true) {
-                // Force divJ to 0 on boundary
-                this->divJ[i][h.vi] = 0;
-
-            } else {
-                // 1. The D Del^2 a_i term
-                // Compute the sum around the neighbours
-                double thesum = -6 * fa[h.vi];
-                thesum += fa[h.ne->vi];
-                thesum += fa[h.nne->vi];
-                thesum += fa[h.nnw->vi];
-                thesum += fa[h.nw->vi];
-                thesum += fa[h.nsw->vi];
-                thesum += fa[h.nse->vi];
-                // Multiply bu 2D/3d^2
-                double term1 = (this->D * 2) / (3 * this->d * this->d) * thesum;
-
-                // 2. The a div(g) term. Two sums for this.
-                double term2 = 0.0;
-                // First sum
-                term2 += /*cos (0)*/ (this->g[i][0][h.ne->vi] + this->g[i][0][h.vi]);
-                term2 += /*cos (60)*/ 0.5 * (this->g[i][0][h.nne->vi] + this->g[i][0][h.vi]);
-                term2 -= /*cos (120)*/ 0.5 * (this->g[i][0][h.nnw->vi] + this->g[i][0][h.vi]);
-                term2 -= /*cos (180)*/ (this->g[i][0][h.nw->vi] + this->g[i][0][h.vi]);
-                term2 -= /*cos (240)*/ 0.5 * (this->g[i][0][h.nsw->vi] + this->g[i][0][h.vi]);
-                term2 += /*cos (300)*/ 0.5 * (this->g[i][0][h.nse->vi] + this->g[i][0][h.vi]);
-                // 2nd sum
-                //term2 += sin (0) * (this->g[i][1][h.ne->vi] + this->g[i][1][h.vi]);
-                term2 += /*sin (60)*/ R3_OVER_2 * (this->g[i][1][h.nne->vi] + this->g[i][1][h.vi]);
-                term2 += /*sin (120)*/ R3_OVER_2 * (this->g[i][1][h.nnw->vi] + this->g[i][1][h.vi]);
-                //term2 += sin (180) * (this->g[i][1][h.nw->vi] + this->g[i][1][h.vi]);
-                term2 -= /*sin (240)*/ R3_OVER_2 * (this->g[i][1][h.nsw->vi] + this->g[i][1][h.vi]);
-                term2 -= /*sin (300)*/ R3_OVER_2 * (this->g[i][1][h.nse->vi] + this->g[i][1][h.vi]);
-                term2 /= 2.0;
-                term2 *= fa[h.vi];
-
-                // 3. Third term is this->g . grad a_i
-                double term3 = this->g[i][0][h.vi] * this->grad_a[i][0][h.vi]
-                    + this->g[i][1][h.vi] * this->grad_a[i][1][h.vi];
-
-                this->divJ[i][h.vi] = term1 + term2 + term3;
-            }
-        }
-#endif
-
-#ifdef NAIVE_METHOD_WITH_BOUNDARY_TESTING
-        // Compute gradient of a_i(x)
-        this->spacegrad2D (fa, this->grad_a[i]);
-        // Compute J. J blows up if grad_a blows up.
-        for (auto h : this->hg->hexen) {
-            if (h.onBoundary() == true) {
-                // Force J to 0 on boundary. Is there a less brutal way?
-                this->J[i][0][h.vi] = 0;
-                this->J[i][1][h.vi] = 0;
-            } else {
-                this->J[i][0][h.vi] = this->D * this->grad_a[i][0][h.vi] - fa[h.vi] * this->g[i][0][h.vi];
-                this->J[i][1][h.vi] = this->D * this->grad_a[i][1][h.vi] - fa[h.vi] * this->g[i][1][h.vi];
-            }
-        }
-        // Compute divergence of J
-        this->divergence_boundary (this->J[i], this->divJ[i]);
-#endif
-
-#ifdef NAIVE_METHOD
-        // Compute gradient of a_i(x)
-        this->spacegrad2D (fa, this->grad_a[i]);
-        // Compute J. J blows up if grad_a blows up.
-        for (unsigned int h = 0; h<this->nhex; ++h) {
-            this->J[i][0][h] = this->D * this->grad_a[i][0][h] - fa[h] * this->g[i][0][h];
-            this->J[i][1][h] = this->D * this->grad_a[i][1][h] - fa[h] * this->g[i][1][h];
-        }
-        // Compute divergence of J
-        this->divergence_boundary (this->J[i], this->divJ[i]);
-#endif
     }
 
     /*!
@@ -1312,11 +1089,6 @@ public:
                 pax[h.vi] += tau_pax * (-pax[h.vi] + eta_pax[h.vi] / (1. + v1 * emx[h.vi]));
                 fgf[h.vi] += tau_fgf * (-fgf[h.vi] + eta_fgf[h.vi] / (1. + w1 * emx[h.vi]));
             }
-            // Incompatible with parallel:
-            //if (t%1000 == 0) {
-            //    DBG ("Plot for t=" << t);
-            //    this->plotexpression (displays);
-            //}
         }
         this->plotexpression (displays);
     }
@@ -1334,47 +1106,6 @@ public:
 
         }
         this->plotchemo (displays);
-    }
-
-    /*!
-     * Create a symmetric, 2D Gaussian hill centred at coordinate (x,y) with
-     * width sigma and height gain. Place result into @a result.
-     */
-    void createGaussian (float x, float y, double gain, double sigma, vector<double>& result) {
-
-        // Once-only parts of the calculation of the Gaussian.
-        double root_2_pi = 2.506628275;
-        double one_over_sigma_root_2_pi = 1 / sigma * root_2_pi;
-        double two_sigma_sq = 2 * sigma * sigma;
-
-        // Gaussian dist. result, and a running sum of the results:
-        double gauss = 0.0;
-        double sum = 0.0;
-
-        // x and y components of the vector from (x,y) to any given Hex.
-        float rx = 0.0f, ry = 0.0f;
-        // distance from any Hex to (x,y)
-        float r = 0.0f;
-
-        // Calculate each element of the kernel:
-        for (auto h : this->hg->hexen) {
-            rx = x - h.x;
-            ry = y - h.y;
-            r = sqrt (rx*rx + ry*ry);
-            gauss = gain * (one_over_sigma_root_2_pi
-                            * exp ( static_cast<double>(-(r*r))
-                                    / two_sigma_sq ));
-            result[h.vi] = gauss;
-            sum += gauss;
-            ++k;
-        }
-
-        // Normalise the kernel to 1 by dividing by the sum:
-        unsigned int j = this->nhex;
-        while (j > 0) {
-            --j;
-            result[j] = result[j] / sum;
-        }
     }
 
 }; // RD_2D_Karb
