@@ -10,8 +10,9 @@
 #include <array>
 #include <iomanip>
 #include <cmath>
-
+#ifdef __GLN__ // Currently I've only tested OpenMP on Linux
 #include <omp.h>
+#endif
 
 #define DEBUG 1
 #define DBGSTREAM std::cout
@@ -140,9 +141,14 @@ public:
      * Variables for factor expression dynamics (Eqs 5-7)
      */
     //@{
+    /*!
+     * Uncoupled concentrations of the factors - i.e. where they start.
+     */
+    //@{
     vector<double> eta_emx;
     vector<double> eta_pax;
     vector<double> eta_fgf;
+    //@}
 
     /*!
      * These are s(x), r(x) and f(x) in Karb2004.
@@ -158,13 +164,13 @@ public:
      * Parameters for factor expression dynamics (Eqs 5-7)
      */
     //@{
-    double Aemx = 1.34;
-    double Apax = 1.4;
-    double Afgf = 0.9;
+    double Aemx = 1;
+    double Apax = 1;
+    double Afgf = 1;
 
-    double Chiemx = 2.0;//0.094; //25.6;
-    double Chipax = 2.5;//0.1;  //27.3;
-    double Chifgf = 2.25;//0.098; //26.4
+    double Chiemx = 1;//0.094; //25.6;
+    double Chipax = 1;//0.1;  //27.3;
+    double Chifgf = 1;//0.098; //26.4
 
     double v1 = 2.6;
     double v2 = 2.7;
@@ -186,19 +192,19 @@ public:
      */
     //@{
     float diremx = 3.141593;
-    float dirpax = 1.2; // norm 0
+    float dirpax = 1.6; // norm 0
     float dirfgf = 0; // norm 0
     //@}
 
     double sigmaA = 0.1;
     double sigmaB = 0.1;
-    double sigmaC = 0.2;
+    double sigmaC = 0.1;
 
-    double kA = 0.1;
-    double kB = 6;
+    double kA = 0.2;
+    double kB = 4;
     double kC = 0.9;
 
-    double theta1 = 0.1; // 0.77 orig.
+    double theta1 = 0.8; // 0.77 orig.
     double theta2 = 0.4; // 0.5
     double theta3 = 0.6; // 0.39
     double theta4 = 0.1; // 0.08
@@ -342,10 +348,9 @@ public:
      * Initialise HexGrid, variables and parameters. Carry out
      * one-time computations of the model.
      */
-    void init (vector<morph::Gdisplay>& displays) {
+    void init (vector<morph::Gdisplay>& displays, bool useSavedGenetics = false) {
 
         DBG ("called");
-
         // Create a HexGrid
         this->hg = new HexGrid (0.01, 3);
         // Read the curves which make a boundary
@@ -398,7 +403,7 @@ public:
         this->noiseify_vector_vector (this->a);
 
         // Populate parameters
-        double gammagain = 20.0;
+        double gammagain = 1.0;
         this->gammaA[0] =  1.6 * gammagain;
         this->gammaA[1] = -0.4 * gammagain;
         this->gammaA[2] = -2.21 * gammagain;
@@ -429,37 +434,60 @@ public:
         this->beta[3] = 1;
         this->beta[4] = 1;
 
-        // Generate the assumed uncoupled concentrations of growth/transcription factors
-        this->createFactorInitialConc (this->diremx, this->Aemx, this->Chiemx, this->eta_emx);
-        this->createFactorInitialConc (this->dirpax, this->Apax, this->Chipax, this->eta_pax);
-        this->createFactorInitialConc (this->dirfgf, this->Afgf, this->Chifgf, this->eta_fgf);
+        if (useSavedGenetics == false) {
+            // Generate the assumed uncoupled concentrations of growth/transcription factors
+            this->createFactorInitialConc (this->diremx, this->Aemx, this->Chiemx, this->eta_emx);
+            this->createFactorInitialConc (this->dirpax, this->Apax, this->Chipax, this->eta_pax);
+            this->createFactorInitialConc (this->dirfgf, this->Afgf, this->Chifgf, this->eta_fgf);
 
-        // Run the expression dynamics, showing images as we go.
-        this->runExpressionDynamics (displays);
+            // Run the expression dynamics, showing images as we go.
+            this->runExpressionDynamics (displays);
 
-        // Can now populate rhoA, rhoB and rhoC according to the paper.
-        this->populateChemoAttractants (displays);
+            // Can now populate rhoA, rhoB and rhoC according to the paper.
+            this->populateChemoAttractants (displays);
+
+            this->saveGenetics();
+
+        } else {
+            this->loadGenetics();
+        }
 
         // Compute gradients of guidance molecule concentrations once only
         this->spacegrad2D (this->rhoA, this->grad_rhoA);
         this->spacegrad2D (this->rhoB, this->grad_rhoB);
         this->spacegrad2D (this->rhoC, this->grad_rhoC);
 
-        // Having computed gradients, build this->g; has to be done
-        // once only. Note that a sigmoid is applied so that g(x)
-        // drops to zero around the boundary of the domain.
+        // Having computed gradients, build this->g; has
+        // to be done once only. Note that a sigmoid is applied so
+        // that g(x) drops to zero around the boundary of the domain.
         for (unsigned int i=0; i<this->N; ++i) {
             for (auto h : this->hg->hexen) {
                 // Sigmoid/logistic fn params: 100 sharpness, 0.01 dist offset from boudnary
                 double bSig = 1.0 / ( 1.0 + exp (-100.0*(h.distToBoundary-0.02)) );
                 this->g[i][0][h.vi] = (this->gammaA[i] * this->grad_rhoA[0][h.vi]
-                                    + this->gammaB[i] * this->grad_rhoB[0][h.vi]
-                                    + this->gammaC[i] * this->grad_rhoC[0][h.vi]) * bSig;
+                                       + this->gammaB[i] * this->grad_rhoB[0][h.vi]
+                                       + this->gammaC[i] * this->grad_rhoC[0][h.vi]) * bSig;
                 this->g[i][1][h.vi] = (this->gammaA[i] * this->grad_rhoA[1][h.vi]
-                                    + this->gammaB[i] * this->grad_rhoB[1][h.vi]
-                                    + this->gammaC[i] * this->grad_rhoC[1][h.vi]) * bSig;
+                                       + this->gammaB[i] * this->grad_rhoB[1][h.vi]
+                                       + this->gammaC[i] * this->grad_rhoC[1][h.vi]) * bSig;
             }
         }
+    }
+
+    /*!
+     * Save the results of running createFactorInitialConc(),
+     * runExpressionDynamics() and populateChemoAttractants().
+     */
+    void saveGenetics (void) {
+        // Writeme.
+    }
+
+    /*!
+     * Load the results of running createFactorInitialConc(),
+     * runExpressionDynamics() and populateChemoAttractants().
+     */
+    void loadGenetics (void) {
+        // Writeme.
     }
 
     /*!
@@ -489,8 +517,8 @@ public:
 
         // Note - East is positive x; North is positive y.
         #pragma omp parallel for
-        for (unsigned int ii=0; ii<this->nhex; ++ii) {
-            Hex* h = this->hg->vhexen[ii];
+        for (unsigned int hi=0; hi<this->nhex; ++hi) {
+            Hex* h = this->hg->vhexen[hi];
 
             gradf[0][h->vi] = 0.0;
             gradf[1][h->vi] = 0.0;
@@ -566,8 +594,8 @@ public:
         double nsum = 0.0;
         double csum = 0.0;
         #pragma omp parallel for
-        for (unsigned int ii=0; ii<this->nhex; ++ii) {
-            Hex* h = this->hg->vhexen[ii];
+        for (unsigned int hi=0; hi<this->nhex; ++hi) {
+            Hex* h = this->hg->vhexen[hi];
             n[h->vi] = 0; // whoops forgot this!
             for (unsigned int i=0; i<N; ++i) {
                 n[h->vi] += c[i][h->vi];
@@ -731,12 +759,8 @@ public:
         disp.resetDisplay (fix, eye, rot);
         for (unsigned int i = 0; i<this->N; ++i) {
             for (auto h : this->hg->hexen) {
-#ifdef PLOT_WITH_Z
-                disp.drawHex (h.position(), offset, (h.d/2.0f), norm_a[i][h.vi]);
-#else
                 array<float,3> cl_a = morph::Tools::getJetColorF (norm_a[i][h.vi]);
                 disp.drawHex (h.position(), offset, (h.d/2.0f), cl_a);
-#endif
             }
             offset[0] += hgwidth + (hgwidth/20);
         }
@@ -753,38 +777,32 @@ public:
         eye[2] = -0.4;
         vector<double> rot(3, 0.0);
 
-        // Copies data to plot out of the model
-        double maxemx = -1e7;
-        double minemx = +1e7;
-        double maxpax = -1e7;
-        double minpax = +1e7;
-        double maxfgf = -1e7;
-        double minfgf = +1e7;
         // Determines min and max
+        double max = -1e7;
+        double min = +1e7;
         for (auto h : this->hg->hexen) {
             if (h.onBoundary() == false) {
-                if (this->emx[h.vi]>maxemx) { maxemx = this->emx[h.vi]; }
-                if (this->emx[h.vi]<minemx) { minemx = this->emx[h.vi]; }
+                if (this->emx[h.vi]>max) { max = this->emx[h.vi]; }
+                if (this->emx[h.vi]<min) { min = this->emx[h.vi]; }
 
-                if (this->pax[h.vi]>maxpax) { maxpax = this->pax[h.vi]; }
-                if (this->pax[h.vi]<minpax) { minpax = this->pax[h.vi]; }
+                if (this->pax[h.vi]>max) { max = this->pax[h.vi]; }
+                if (this->pax[h.vi]<min) { min = this->pax[h.vi]; }
 
-                if (this->fgf[h.vi]>maxfgf) { maxfgf = this->fgf[h.vi]; }
-                if (this->fgf[h.vi]<minfgf) { minfgf = this->fgf[h.vi]; }
+                if (this->fgf[h.vi]>max) { max = this->fgf[h.vi]; }
+                if (this->fgf[h.vi]<min) { min = this->fgf[h.vi]; }
             }
         }
-        double scaleemx = 1.0 / (maxemx-minemx);
-        double scalepax = 1.0 / (maxpax-minpax);
-        double scalefgf = 1.0 / (maxfgf-minfgf);
+
+        double scale = 1.0 / (max-min);
 
         // Determine a colour from min, max and current value
         vector<double> norm_emx(this->nhex, 0.0);
         vector<double> norm_pax(this->nhex, 0.0);
         vector<double> norm_fgf(this->nhex, 0.0);
         for (unsigned int h=0; h<this->nhex; h++) {
-            norm_emx[h] = fmin (fmax (((this->emx[h]) - minemx) * scaleemx, 0.0), 1.0);
-            norm_pax[h] = fmin (fmax (((this->pax[h]) - minpax) * scalepax, 0.0), 1.0);
-            norm_fgf[h] = fmin (fmax (((this->fgf[h]) - minfgf) * scalefgf, 0.0), 1.0);
+            norm_emx[h] = fmin (fmax (((this->emx[h]) - min) * scale, 0.0), 1.0);
+            norm_pax[h] = fmin (fmax (((this->pax[h]) - min) * scale, 0.0), 1.0);
+            norm_fgf[h] = fmin (fmax (((this->fgf[h]) - min) * scale, 0.0), 1.0);
         }
 
         // Step through vectors or iterate through list? The latter should be just fine here.
@@ -796,17 +814,6 @@ public:
         array<float,3> offset2 = { 0.0f, 0.0f, 0.0f };
         array<float,3> offset3 = { hgwidth+(hgwidth/20), 0.0f, 0.0f };
 
-#ifdef PLOT_EXPRESSION_WITH_Z
-        for (auto h : this->hg->hexen) {
-            disps[0].drawHex (h.position(), offset1, (h.d/2.0f), norm_emx[h.vi]);
-        }
-        for (auto h : this->hg->hexen) {
-            disps[0].drawHex (h.position(), offset2, (h.d/2.0f), norm_pax[h.vi]);
-        }
-        for (auto h : this->hg->hexen) {
-            disps[0].drawHex (h.position(), offset3, (h.d/2.0f), norm_fgf[h.vi]);
-        }
-#else
         for (auto h : this->hg->hexen) {
             array<float,3> cl_emx = morph::Tools::getJetColorF (norm_emx[h.vi]);
             disps[0].drawHex (h.position(), offset1, (h.d/2.0f), cl_emx);
@@ -819,7 +826,6 @@ public:
             array<float,3> cl_fgf = morph::Tools::getJetColorF (norm_fgf[h.vi]);
             disps[0].drawHex (h.position(), offset3, (h.d/2.0f), cl_fgf);
         }
-#endif
         disps[0].redrawDisplay();
     }
     /*!
@@ -832,38 +838,31 @@ public:
         eye[2] = -0.4;
         vector<double> rot(3, 0.0);
 
-        // Copies data to plot out of the model
-        double maxrhoA = -1e7;
-        double minrhoA = +1e7;
-        double maxrhoB = -1e7;
-        double minrhoB = +1e7;
-        double maxrhoC = -1e7;
-        double minrhoC = +1e7;
+        double max = -1e7;
+        double min = +1e7;
         // Determines min and max
         for (auto h : this->hg->hexen) {
             if (h.onBoundary() == false) {
-                if (this->rhoA[h.vi]>maxrhoA) { maxrhoA = this->rhoA[h.vi]; }
-                if (this->rhoA[h.vi]<minrhoA) { minrhoA = this->rhoA[h.vi]; }
+                if (this->rhoA[h.vi]>max) { max = this->rhoA[h.vi]; }
+                if (this->rhoA[h.vi]<min) { min = this->rhoA[h.vi]; }
 
-                if (this->rhoB[h.vi]>maxrhoB) { maxrhoB = this->rhoB[h.vi]; }
-                if (this->rhoB[h.vi]<minrhoB) { minrhoB = this->rhoB[h.vi]; }
+                if (this->rhoB[h.vi]>max) { max = this->rhoB[h.vi]; }
+                if (this->rhoB[h.vi]<min) { min = this->rhoB[h.vi]; }
 
-                if (this->rhoC[h.vi]>maxrhoC) { maxrhoC = this->rhoC[h.vi]; }
-                if (this->rhoC[h.vi]<minrhoC) { minrhoC = this->rhoC[h.vi]; }
+                if (this->rhoC[h.vi]>max) { max = this->rhoC[h.vi]; }
+                if (this->rhoC[h.vi]<min) { min = this->rhoC[h.vi]; }
             }
         }
-        double scalerhoA = 1.0 / (maxrhoA-minrhoA);
-        double scalerhoB = 1.0 / (maxrhoB-minrhoB);
-        double scalerhoC = 1.0 / (maxrhoC-minrhoC);
+        double scale = 1.0 / (max-min);
 
         // Determine a colour from min, max and current value
         vector<double> norm_rhoA(this->nhex, 0.0);
         vector<double> norm_rhoB(this->nhex, 0.0);
         vector<double> norm_rhoC(this->nhex, 0.0);
         for (unsigned int h=0; h<this->nhex; h++) {
-            norm_rhoA[h] = fmin (fmax (((this->rhoA[h]) - minrhoA) * scalerhoA, 0.0), 1.0);
-            norm_rhoB[h] = fmin (fmax (((this->rhoB[h]) - minrhoB) * scalerhoB, 0.0), 1.0);
-            norm_rhoC[h] = fmin (fmax (((this->rhoC[h]) - minrhoC) * scalerhoC, 0.0), 1.0);
+            norm_rhoA[h] = fmin (fmax (((this->rhoA[h]) - min) * scale, 0.0), 1.0);
+            norm_rhoB[h] = fmin (fmax (((this->rhoB[h]) - min) * scale, 0.0), 1.0);
+            norm_rhoC[h] = fmin (fmax (((this->rhoC[h]) - min) * scale, 0.0), 1.0);
         }
 
         // Set offsets for the three maps that we'll plot
@@ -874,19 +873,6 @@ public:
 
         // Step through vectors or iterate through list? The latter should be just fine here.
         disps[1].resetDisplay (fix, eye, rot);
-#ifdef PLOT_CHEMO_WITH_Z
-        for (auto h : this->hg->hexen) {
-            disps[1].drawHex (h.position(), offset1, (h.d/2.0f), norm_rhoA[h.vi]);
-        }
-
-        for (auto h : this->hg->hexen) {
-            disps[1].drawHex (h.position(), offset2, (h.d/2.0f), norm_rhoB[h.vi]);
-        }
-
-        for (auto h : this->hg->hexen) {
-            disps[1].drawHex (h.position(), offset3, (h.d/2.0f), norm_rhoC[h.vi]);
-        }
-#else
         for (auto h : this->hg->hexen) {
             array<float,3> cl_rhoA = morph::Tools::getJetColorF (norm_rhoA[h.vi]);
             disps[1].drawHex (h.position(), offset1, (h.d/2.0f), cl_rhoA);
@@ -901,7 +887,6 @@ public:
             array<float,3> cl_rhoC = morph::Tools::getJetColorF (norm_rhoC[h.vi]);
             disps[1].drawHex (h.position(), offset3, (h.d/2.0f), cl_rhoC);
         }
-#endif
         disps[1].redrawDisplay();
     }
 
@@ -934,9 +919,9 @@ public:
         this->spacegrad2D (fa, this->grad_a[i]);
 
         #pragma omp parallel for
-        for (unsigned int ii=0; ii<this->nhex; ++ii) {
+        for (unsigned int hi=0; hi<this->nhex; ++hi) {
 
-            Hex* h = this->hg->vhexen[ii];
+            Hex* h = this->hg->vhexen[hi];
             // 1. The D Del^2 a_i term
             // Compute the sum around the neighbours
             double thesum = -6 * fa[h->vi];
@@ -1103,22 +1088,25 @@ public:
             this->rhoA[h] = (kA/2.)*(1.+tanh((fgf[h]-theta1)/sigmaA));
             this->rhoB[h] = (kB/2.)*(1.+tanh((theta2-fgf[h])/sigmaB))*(kB/2.)*(1.+tanh((fgf[h]-theta3)/sigmaB));
             this->rhoC[h] = (kC/2.)*(1.+tanh((theta4-fgf[h])/sigmaC));
-
         }
         this->plotchemo (displays);
     }
 
 }; // RD_2D_Karb
 
-// Define this to run without the python server. Run as:
-// process world00 logs/log00.txt 1
-#define NO_NETWORKING 1
-
 int main (int argc, char **argv)
 {
-    srand(atoi(argv[3]));
+    if (argc < 2) {
+        cerr << "\nUsage: ./build/sim/process w0\n\n";
+        cerr << "Be sure to run from the base NeoArealize source directory.\n";
+        return -1;
+    }
 
-    // DISPLAYS
+    // Set RNG seed
+    int rseed = 1;
+    srand(rseed);
+
+    // Create some displays
     vector<morph::Gdisplay> displays;
     vector<double> fix(3, 0.0);
     vector<double> eye(3, 0.0);
@@ -1128,22 +1116,22 @@ int main (int argc, char **argv)
     double rhoInit = 1.5;
     string worldName(argv[1]);
     string winTitle = worldName + ": emx_pax_fgf";
-    displays.push_back (morph::Gdisplay (1020, 300, winTitle.c_str(), rhoInit, 0.0, 0.0));
+    displays.push_back (morph::Gdisplay (1020, 300, 100, 0, winTitle.c_str(), rhoInit, 0.0, 0.0));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
     winTitle = worldName + ": rhoA_rhoB_rhoC";
-    displays.push_back (morph::Gdisplay (1020, 300, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
+    displays.push_back (morph::Gdisplay (1020, 300, 100, 300, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
     winTitle = worldName + ": a[0] to a[4]";
-    displays.push_back (morph::Gdisplay (1700, 300, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
+    displays.push_back (morph::Gdisplay (1700, 300, 100, 600, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
     winTitle = worldName + ": c[0] to c[4]";
-    displays.push_back (morph::Gdisplay (1700, 300, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
+    displays.push_back (morph::Gdisplay (1700, 300, 100, 900, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
@@ -1154,176 +1142,27 @@ int main (int argc, char **argv)
     } catch (const exception& e) {
         cerr << "Exception initialising RD_2D_Karb object: " << e.what() << endl;
     }
-#ifdef NO_NETWORKING
-    morph::World W(argv[1], argv[2], atoi(argv[3]), M.dt);
-#else
-    morph::World W(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]), M.dt);
-#endif
 
-    // Keep track of the frame number
-    unsigned int frameN = 0;
-
-    // Keep track of the time
-    double TIME=0.;
-    vector <double*> f;
-    f.push_back(&TIME);
+    // Create the morphologica world (allows logging, otherwise not very necessary?)
+    //morph::World W("w0", "logs/w0.log", rseed, M.dt);
 
     // Start the loop
     bool doing = true;
-    bool do_a_step = true;
     while (doing) {
-
-        std::stringstream TIMEss;
-        TIMEss << setw(10) << setfill('0') << TIME;
-        const char* TIMEcs = TIMEss.str().c_str();
-
-        std::stringstream out;
-        out.clear();
-        out.setf (ios::fixed, ios::floatfield);
-
-        // Start making an output message
-        out << TIME << ",";
-
-        // Check for a command from the model world
-        vector<string> command;
-#ifndef NO_NETWORKING
-        string messageI = W.master.exchange (out.str().c_str());
-        stringstream ss(messageI);
-        while (ss.good()) {
-            string substr;
-            getline (ss,substr, ',');
-            command.push_back (substr);
-        }
-        ss.clear();
-#else
-        command.push_back ("1");
-#endif
-
-#ifdef NO_NETWORKING
-        // Force step/plot/step/plot etc.
-        if (do_a_step == true) {
-            command[0] = "1";
-            do_a_step = false;
-        } else {
-            command[0] = "2";
-            do_a_step = true;
-        }
-#endif
-        // Interpret commands:
-        switch (stoi(command[0])) {
-
-        case 0: // *** QUIT ***
-        {
-            W.logfile << W.processName << "@" << TIMEcs << ": 0=QUIT" << endl;
-
-            W.logfile.close();
-            for (unsigned int i=0; i<displays.size(); i++) {
-                displays[i].closeDisplay();
-            }
-#ifndef NO_NETWORKING
-            W.master.closeSocket();
-            for (unsigned int i=0; i<W.ports.size(); i++) {
-                W.ports[i].closeSocket();
-            }
-#endif
+        // Step the model
+        try {
+            M.step();
+        } catch (const exception& e) {
+            cerr << "Caught exception calling M.step(): " << e.what() << endl;
             doing = false;
-            break;
         }
 
-        case 1: // *** STEP ***
-        {
-            W.logfile << W.processName << "@" << TIMEcs << ": 1=STEP" << endl;
-
-            // Exchange comms [should be vector<vector<string> > commands = W.getcommand()]
-            vector<vector<string> > commands(W.ports.size());
-            for (unsigned int i=0; i<W.ports.size(); i++) {
-                string messageI = W.ports[i].exchange (out.str().c_str());
-                stringstream ss(messageI);
-                while (ss.good()) {
-                    string substr;
-                    getline (ss, substr, ',');
-                    commands[i].push_back (substr);
-                }
-                ss.clear();
-            }
-
-            // Step the model
-            try {
-                M.step();
-            } catch (const exception& e) {
-                W.logfile << "Caught exception calling M.step(): " << e.what() << endl;
-            }
-
-            TIME++;
-            break;
-        }
-
-        case 2: // *** PLOT ***
-        {
-            W.logfile << W.processName << "@" << TIMEcs << ": 2=PLOT" << endl;
-            displays[0].resetDisplay (fix, eye, rot);
-            try {
-                M.plot (displays);
-            } catch (const exception& e) {
-                W.logfile << "Caught exception calling M.plot(): " << e.what() << endl;
-            }
-            break;
-        }
-
-        case 3:
-        {
-            W.logfile << W.processName << "@" << TIMEcs << ": 3=RECD" << endl;
-            std::stringstream frameFile1;
-            frameFile1 << "logs/" << W.processName << "frameA";
-            frameFile1 << setw(5) << setfill('0') << frameN;
-            frameFile1 << ".png";
-            displays[0].saveImage (frameFile1.str());
-            frameN++;
-            break;
-        }
-
-        case 4:
-        {
-            W.logfile << W.processName << "@" << TIMEcs << ": 4=RECD" << endl;
-
-            // Set up parameters from sim.py like this
-            switch(stoi(command[1])){
-            case 0:
-            {
-                //Dn[stoi(command[2])] = stod(command[3]);
-                break;
-            }
-            case 1:
-            {
-                //Dc[stoi(command[2])] = stod(command[3]);
-                break;
-            }
-            }
-            break;
-        }
-
-        case 5: // *** SAVE ***
-        {
-            W.logfile << W.processName << "@" << TIMEcs << ": 5=SAVE" << endl;
-            if (command.size() == 2) {
-                //M.save (command[1].str());
-            } else {
-                W.logfile << "No output filename." << endl;
-            }
-            break;
-        }
-
-        case 6: // *** LOAD ***
-        {
-            W.logfile << W.processName << "@" << TIMEcs << ": 6=LOAD" << endl;
-            if (command.size() == 2) {
-                //M.load(command[1]);
-            } else {
-                W.logfile << "No input filename." << endl;
-            }
-            break;
-        }
-
+        displays[0].resetDisplay (fix, eye, rot);
+        try {
+            M.plot (displays);
+        } catch (const exception& e) {
+            cerr << "Caught exception calling M.plot(): " << e.what() << endl;
+            doing = false;
         }
     }
 

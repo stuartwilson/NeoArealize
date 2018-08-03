@@ -21,8 +21,14 @@ else()
 endif()
 
 # Add the host definition to CXXFLAGS along with other switches
-set(CMAKE_CXX_FLAGS "${MORPH_HOST_DEFINITION} -Wall -g -std=c++11 -fopenmp")
-#set(CMAKE_CXX_FLAGS "${MORPH_HOST_DEFINITION} -Wall -g -std=c++11")
+if (APPLE)
+  # I'm not sure how to enable openmp on clang, so add whatever is
+  # required here (and check process.cpp to correctly include the
+  # omp.h header)
+  set(CMAKE_CXX_FLAGS "${MORPH_HOST_DEFINITION} -Wall -g -std=c++11")
+else()
+  set(CMAKE_CXX_FLAGS "${MORPH_HOST_DEFINITION} -Wall -g -std=c++11 -fopenmp")
+endif()
 
 # Lib finding - we have to do this, so that the correct include paths
 # are present for OpenGL, OpenCV, etc; they're all included by
