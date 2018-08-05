@@ -37,7 +37,14 @@ find_package(OpenCV REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
 find_package(X11 REQUIRED)
-include_directories(${OpenCV_INCLUDE_DIRS} ${OPENGL_INCLUDE_DIR} ${GLUT_INCLUDE_DIR} ${X11_INC_SEARCH_PATH})
+
+set (LIB_TYPE SHARED) # STATIC or SHARED
+string(TOLOWER ${LIB_TYPE} SEARCH_TYPE)
+#find_package (HDF5) # Find non-cmake built HDF5, as installed on Ubuntu
+# In case the above fails, something like this might work
+find_package (HDF5 NAMES hdf5 COMPONENTS C ${SEARCH_TYPE})
+
+include_directories(${OpenCV_INCLUDE_DIRS} ${OPENGL_INCLUDE_DIR} ${GLUT_INCLUDE_DIR} ${X11_INC_SEARCH_PATH} ${HDF5_INCLUDE_DIR})
 
 # Find libmorphologica using pkgconfig
 find_package(PkgConfig)
