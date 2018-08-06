@@ -170,9 +170,12 @@ public:
     double Apax = 1;
     double Afgf = 1;
 
-    double Chiemx = 1;//0.094; //25.6;
-    double Chipax = 1;//0.1;  //27.3;
-    double Chifgf = 1;//0.098; //26.4
+    // These are scaled rougly in proportion with the values in
+    // Karb2004. I have about a 1mm long cortex, so their Chis are
+    // divided by 40 to get these values.
+    double Chiemx = 0.64; //25.6/40
+    double Chipax = 0.68; //27.3/40
+    double Chifgf = 0.66; //26.4/40
 
     double v1 = 2.6;
     double v2 = 2.7;
@@ -194,7 +197,7 @@ public:
      */
     //@{
     float diremx = 3.141593;
-    float dirpax = 1.6; // norm 0
+    float dirpax = 0; // norm 0
     float dirfgf = 0; // norm 0
     //@}
 
@@ -205,18 +208,18 @@ public:
      * final eta, pax and fgf expression levels.
      */
     //@{
-    double sigmaA = 0.1;
-    double sigmaB = 0.1;
-    double sigmaC = 0.1;
+    double sigmaA = 0.2;
+    double sigmaB = 0.2;
+    double sigmaC = 0.2;
 
-    double kA = 0.5;
-    double kB = 2;
-    double kC = 3.8;
+    double kA = 0.7;
+    double kB = 0.9;
+    double kC = 0.48;
 
-    double theta1 = 0.77; // 0.77 orig.
-    double theta2 = 0.39; // 0.5
-    double theta3 = 0.50; // 0.39
-    double theta4 = 0.15; // 0.08
+    double theta1 = 0.9; // 0.77 orig.
+    double theta2 = 0.5; // 0.5
+    double theta3 = 0.39; // 0.39
+    double theta4 = 0.08; // 0.08
     //@}
 
     /*!
@@ -337,16 +340,18 @@ public:
      * drops away towards the edge of the domain.
      */
     void noiseify_vector_vector (vector<vector<double> >& vv) {
+        double randNoiseOffset = 0.8;
+        double randNoiseGain = 0.1;
         for (unsigned int i = 0; i<this->N; ++i) {
             for (auto h : this->hg->hexen) {
                 // boundarySigmoid. Jumps sharply (100, larger is
                 // sharper) over length scale 0.05 to 1. So if
                 // distance from boundary > 0.05, noise has normal
                 // value. Close to boundary, noise is less.
-                vv[i][h.vi] = morph::Tools::randDouble() * 0.1;// + 0.8;
+                vv[i][h.vi] = morph::Tools::randDouble() * randNoiseGain + randNoiseOffset;
                 if (h.distToBoundary > -0.5) { // It's possible that distToBoundary is set to -1.0
-                    double bSig = 1.0 / ( 1.0 + exp (-100.0*(h.distToBoundary-0.01)) ); // 0.05!
-                    vv[i][h.vi] = vv[i][h.vi] * bSig;
+                    double bSig = 1.0 / ( 1.0 + exp (-100.0*(h.distToBoundary-0.02)) );
+                    vv[i][h.vi] = vv[i][h.vi] /* * bSig */;
                 }
             }
         }
@@ -412,35 +417,57 @@ public:
 
         // Populate parameters
         double gammagain = 1.0;
-        this->gammaA[0] =  1.6 * gammagain;
-        this->gammaA[1] = -0.4 * gammagain;
-        this->gammaA[2] = -2.21 * gammagain;
-        this->gammaA[3] = -2.1 * gammagain;
-        this->gammaA[4] = -2.45 * gammagain;
+        this->gammaA[0] =   1.6  * gammagain; // Attracted to left OR
+        this->gammaA[1] =  -0.4  * gammagain; // Repelled at left
+        this->gammaA[2] =  -2.21 * gammagain; // Strong repulsion at left
+        this->gammaA[3] =  -2.1  * gammagain; // Strong repulsion at left
+        this->gammaA[4] =  -2.45 * gammagain; // Strong repulsion at left
 
-        this->gammaB[0] = -0.6 * gammagain;
-        this->gammaB[1] = -0.5 * gammagain;
-        this->gammaB[2] =  0.4 * gammagain;
-        this->gammaB[3] = -0.5 * gammagain;
-        this->gammaB[4] = -1.0 * gammagain;
+        this->gammaB[0] =  -0.6  * gammagain; // Repelled at midpoint
+        this->gammaB[1] =  -0.5  * gammagain; // Repelled at midpoint
+        this->gammaB[2] =   0.4  * gammagain; // Attracted at midpoint
+        this->gammaB[3] =  -0.5  * gammagain; // Repelled at midpoint
+        this->gammaB[4] =  -1    * gammagain; // Strongly repelled at midpoint
 
-        this->gammaC[0] = -2.9 * gammagain;
-        this->gammaC[1] = -2.5 * gammagain;
-        this->gammaC[2] = -2.23 * gammagain;
-        this->gammaC[3] = -0.6 * gammagain;
-        this->gammaC[4] =  1.7 * gammagain;
+        this->gammaC[0] =  -2.9  * gammagain; // Strongly repelled at right
+        this->gammaC[1] =  -2.5  * gammagain; // Strongly repelled at right
+        this->gammaC[2] =  -2.23 * gammagain; // Strongly repelled at right
+        this->gammaC[3] =  -0.6  * gammagain; // Repelled at right
+        this->gammaC[4] =   1.7  * gammagain; // Attracted at right
 
-        this->alpha[0] = 1;
-        this->alpha[1] = 1;
-        this->alpha[2] = 1;
-        this->alpha[3] = 1;
-        this->alpha[4] = 1;
+        // Above are the Karbowski numbers. Now lets reset em
+#if 1
+        gammagain = 1.0;
+        this->gammaA[0] =    4 * gammagain;
+        this->gammaA[1] =   -1 * gammagain;
+        this->gammaA[2] =   -1 * gammagain;
+        this->gammaA[3] =   -1 * gammagain;
+        this->gammaA[4] =   -1 * gammagain;
 
-        this->beta[0] = 1;
-        this->beta[1] = 1;
-        this->beta[2] = 1;
-        this->beta[3] = 1;
-        this->beta[4] = 1;
+        this->gammaB[0] =   -1 * gammagain;
+        this->gammaB[1] =   -1 * gammagain;
+        this->gammaB[2] =   4 * gammagain;
+        this->gammaB[3] =   -1 * gammagain;
+        this->gammaB[4] =   -1 * gammagain;
+
+        this->gammaC[0] =   -1 * gammagain;
+        this->gammaC[1] =   -1 * gammagain;
+        this->gammaC[2] =   -1 * gammagain;
+        this->gammaC[3] =   -1 * gammagain;
+        this->gammaC[4] =   4 * gammagain;
+#endif
+
+        this->alpha[0] = 3;
+        this->alpha[1] = 3;
+        this->alpha[2] = 3;
+        this->alpha[3] = 3;
+        this->alpha[4] = 3;
+
+        this->beta[0] = 3;
+        this->beta[1] = 3;
+        this->beta[2] = 3;
+        this->beta[3] = 3;
+        this->beta[4] = 3;
 
         if (useSavedGenetics == false) {
             // Generate the assumed uncoupled concentrations of growth/transcription factors
@@ -459,6 +486,22 @@ public:
             this->spacegrad2D (this->rhoB, this->grad_rhoB);
             this->spacegrad2D (this->rhoC, this->grad_rhoC);
 
+            // Having computed gradients, build this->g; has
+            // to be done once only. Note that a sigmoid is applied so
+            // that g(x) drops to zero around the boundary of the domain.
+            for (unsigned int i=0; i<this->N; ++i) {
+                for (auto h : this->hg->hexen) {
+                    // Sigmoid/logistic fn params: 100 sharpness, 0.02 dist offset from boundary
+                    double bSig = 1.0 / ( 1.0 + exp (-100.0*(h.distToBoundary-0.02)) );
+                    this->g[i][0][h.vi] = (this->gammaA[i] * this->grad_rhoA[0][h.vi]
+                                           + this->gammaB[i] * this->grad_rhoB[0][h.vi]
+                                           + this->gammaC[i] * this->grad_rhoC[0][h.vi]) * bSig;
+                    this->g[i][1][h.vi] = (this->gammaA[i] * this->grad_rhoA[1][h.vi]
+                                           + this->gammaB[i] * this->grad_rhoB[1][h.vi]
+                                           + this->gammaC[i] * this->grad_rhoC[1][h.vi]) * bSig;
+                }
+            }
+
             // Save that data out
             this->saveFactorExpression();
 
@@ -467,21 +510,6 @@ public:
             this->loadFactorExpression();
         }
 
-        // Having computed gradients, build this->g; has
-        // to be done once only. Note that a sigmoid is applied so
-        // that g(x) drops to zero around the boundary of the domain.
-        for (unsigned int i=0; i<this->N; ++i) {
-            for (auto h : this->hg->hexen) {
-                // Sigmoid/logistic fn params: 100 sharpness, 0.01 dist offset from boudnary
-                double bSig = 1.0 / ( 1.0 + exp (-100.0*(h.distToBoundary-0.02)) );
-                this->g[i][0][h.vi] = (this->gammaA[i] * this->grad_rhoA[0][h.vi]
-                                       + this->gammaB[i] * this->grad_rhoB[0][h.vi]
-                                       + this->gammaC[i] * this->grad_rhoC[0][h.vi]) * bSig;
-                this->g[i][1][h.vi] = (this->gammaA[i] * this->grad_rhoA[1][h.vi]
-                                       + this->gammaB[i] * this->grad_rhoB[1][h.vi]
-                                       + this->gammaC[i] * this->grad_rhoC[1][h.vi]) * bSig;
-            }
-        }
     }
 
     /*!
@@ -515,6 +543,7 @@ public:
         this->add_double_to_hdf5file (file_id, "/w1", this->w1);
         this->add_double_to_hdf5file (file_id, "/w2", this->w2);
 
+        // Signalling molecule expression levels
         this->add_double_vector_to_hdf5file (file_id, "/emx", this->emx);
         this->add_double_vector_to_hdf5file (file_id, "/pax", this->pax);
         this->add_double_vector_to_hdf5file (file_id, "/fgf", this->fgf);
@@ -537,7 +566,7 @@ public:
         this->add_double_to_hdf5file (file_id, "/theta3", this->theta3);
         this->add_double_to_hdf5file (file_id, "/theta4", this->theta4);
 
-        // The signalling molecule expression levels
+        // The axon guidance molecule expression levels
         this->add_double_vector_to_hdf5file (file_id, "/rhoA", this->rhoA);
         this->add_double_vector_to_hdf5file (file_id, "/rhoB", this->rhoB);
         this->add_double_vector_to_hdf5file (file_id, "/rhoC", this->rhoC);
@@ -549,6 +578,18 @@ public:
         this->add_double_vector_to_hdf5file (file_id, "/grad_rhoB_y", this->grad_rhoB[1]);
         this->add_double_vector_to_hdf5file (file_id, "/grad_rhoC_x", this->grad_rhoC[0]);
         this->add_double_vector_to_hdf5file (file_id, "/grad_rhoC_y", this->grad_rhoC[1]);
+
+        // g - the guidance molecular modifier on a.
+        this->add_double_vector_to_hdf5file (file_id, "/g_0_x", this->g[0][0]);
+        this->add_double_vector_to_hdf5file (file_id, "/g_0_y", this->g[0][1]);
+        this->add_double_vector_to_hdf5file (file_id, "/g_1_x", this->g[1][0]);
+        this->add_double_vector_to_hdf5file (file_id, "/g_1_y", this->g[1][1]);
+        this->add_double_vector_to_hdf5file (file_id, "/g_2_x", this->g[2][0]);
+        this->add_double_vector_to_hdf5file (file_id, "/g_2_y", this->g[2][1]);
+        this->add_double_vector_to_hdf5file (file_id, "/g_3_x", this->g[3][0]);
+        this->add_double_vector_to_hdf5file (file_id, "/g_3_y", this->g[3][1]);
+        this->add_double_vector_to_hdf5file (file_id, "/g_4_x", this->g[4][0]);
+        this->add_double_vector_to_hdf5file (file_id, "/g_4_y", this->g[4][1]);
 
         // Save hex positions
         vector<float> vx, vy;
@@ -563,7 +604,7 @@ public:
 
         herr_t status = H5Fclose (file_id);
         if (status) {
-
+            cerr << "status: " << status << endl;
         }
     }
 
@@ -600,7 +641,7 @@ public:
      */
     void spacegrad2D (vector<double>& f, array<vector<double>, 2>& gradf) {
 
-        // Note - East is positive x; North is positive y.
+        // Note - East is positive x; North is positive y. Does this match how it's drawn in the display??
         #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
             Hex* h = this->hg->vhexen[hi];
@@ -809,6 +850,7 @@ public:
         eye[2] = -0.4;
         vector<double> rot(3, 0.0);
 
+#ifdef INDIVIDUAL_SCALING
         // Copies data to plot out of the model
         vector<double> maxa (5, -1e7);
         vector<double> mina (5, +1e7);
@@ -834,6 +876,30 @@ public:
                 norm_a[i][h] = fmin (fmax (((f[i][h]) - mina[i]) * scalea[i], 0.0), 1.0);
             }
         }
+#else
+        // Copies data to plot out of the model
+        double maxa = -1e7;
+        double mina = +1e7;
+        // Determines min and max
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == false) {
+                for (unsigned int i = 0; i<this->N; ++i) {
+                    if (f[i][h.vi]>maxa) { maxa = f[i][h.vi]; }
+                    if (f[i][h.vi]<mina) { mina = f[i][h.vi]; }
+                }
+            }
+        }
+        double scalea = 1.0 / (maxa-mina);
+
+        // Determine a colour from min, max and current value
+        vector<vector<double> > norm_a;
+        this->resize_vector_vector (norm_a);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            for (unsigned int h=0; h<this->nhex; h++) {
+                norm_a[i][h] = fmin (fmax (((f[i][h]) - mina) * scalea, 0.0), 1.0);
+            }
+        }
+#endif
 
         // Create an offset which we'll increment by the width of the
         // map, starting from the left-most map (f[0])
@@ -1191,13 +1257,21 @@ public:
      */
     void add_double_to_hdf5file (hid_t file_id, const char* path, const double& val) {
         hsize_t dim_singleparam[1];
-        herr_t status;
         dim_singleparam[0] = 1;
         hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
         hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        status = H5Dwrite (dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
+        herr_t status = H5Dwrite (dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
+        if (status) {
+            cerr << "status after H5Dwrite: " << status << endl;
+        }
         status = H5Dclose (dataset_id);
+        if (status) {
+            cerr << "status H5Dclose: " << status << endl;
+        }
         status = H5Sclose (dataspace_id);
+        if (status) {
+            cerr << "status H5Sclose: " << status << endl;
+        }
     }
 
     /*!
@@ -1211,8 +1285,17 @@ public:
         hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
         hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         status = H5Dwrite (dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
+        if (status) {
+            cerr << "status after H5Dwrite: " << status << endl;
+        }
         status = H5Dclose (dataset_id);
+        if (status) {
+            cerr << "status H5Dclose: " << status << endl;
+        }
         status = H5Sclose (dataspace_id);
+        if (status) {
+            cerr << "status H5Sclose: " << status << endl;
+        }
     }
 
     /*!
@@ -1226,8 +1309,17 @@ public:
         hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
         hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         status = H5Dwrite (dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &(vals[0]));
+        if (status) {
+            cerr << "status after H5Dwrite: " << status << endl;
+        }
         status = H5Dclose (dataset_id);
+        if (status) {
+            cerr << "status H5Dclose: " << status << endl;
+        }
         status = H5Sclose (dataspace_id);
+        if (status) {
+            cerr << "status H5Sclose: " << status << endl;
+        }
     }
 
     /*!
@@ -1241,8 +1333,17 @@ public:
         hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
         hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         status = H5Dwrite (dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &(vals[0]));
+        if (status) {
+            cerr << "status after H5Dwrite: " << status << endl;
+        }
         status = H5Dclose (dataset_id);
+        if (status) {
+            cerr << "status H5Dclose: " << status << endl;
+        }
         status = H5Sclose (dataspace_id);
+        if (status) {
+            cerr << "status H5Sclose: " << status << endl;
+        }
     }
     //@}
 
