@@ -209,14 +209,14 @@ public:
     double sigmaB = 0.1;
     double sigmaC = 0.1;
 
-    double kA = 0.2;
-    double kB = 4;
-    double kC = 0.9;
+    double kA = 0.5;
+    double kB = 2;
+    double kC = 3.8;
 
-    double theta1 = 0.8; // 0.77 orig.
-    double theta2 = 0.4; // 0.5
-    double theta3 = 0.6; // 0.39
-    double theta4 = 0.1; // 0.08
+    double theta1 = 0.77; // 0.77 orig.
+    double theta2 = 0.39; // 0.5
+    double theta3 = 0.50; // 0.39
+    double theta4 = 0.15; // 0.08
     //@}
 
     /*!
@@ -290,7 +290,7 @@ public:
      */
     void resize_vector_vector (vector<vector<double> >& vv) {
         vv.resize (this->N);
-        for (unsigned int i =0; i<this->N; ++i) {
+        for (unsigned int i=0; i<this->N; ++i) {
             vv[i].resize (this->nhex, 0.0);
         }
     }
@@ -454,18 +454,18 @@ public:
             // Can now populate rhoA, rhoB and rhoC according to the paper.
             this->populateChemoAttractants (displays);
 
+            // Compute gradients of guidance molecule concentrations once only
+            this->spacegrad2D (this->rhoA, this->grad_rhoA);
+            this->spacegrad2D (this->rhoB, this->grad_rhoB);
+            this->spacegrad2D (this->rhoC, this->grad_rhoC);
+
             // Save that data out
-            this->saveGenetics();
+            this->saveFactorExpression();
 
         } else {
             // Load the data from files
-            this->loadGenetics();
+            this->loadFactorExpression();
         }
-
-        // Compute gradients of guidance molecule concentrations once only
-        this->spacegrad2D (this->rhoA, this->grad_rhoA);
-        this->spacegrad2D (this->rhoB, this->grad_rhoB);
-        this->spacegrad2D (this->rhoC, this->grad_rhoC);
 
         // Having computed gradients, build this->g; has
         // to be done once only. Note that a sigmoid is applied so
@@ -488,8 +488,8 @@ public:
      * Save the results of running createFactorInitialConc(),
      * runExpressionDynamics() and populateChemoAttractants().
      */
-    void saveGenetics (void) {
-        hid_t file_id = H5Fcreate ("logs/genetics.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    void saveFactorExpression (void) {
+        hid_t file_id = H5Fcreate ("logs/factorexpression.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
         // Save initial factor calculations - required in
         // createFactorInitialConc() and runExpressionDynamics()
@@ -542,6 +542,14 @@ public:
         this->add_double_vector_to_hdf5file (file_id, "/rhoB", this->rhoB);
         this->add_double_vector_to_hdf5file (file_id, "/rhoC", this->rhoC);
 
+        // And gradient thereof
+        this->add_double_vector_to_hdf5file (file_id, "/grad_rhoA_x", this->grad_rhoA[0]);
+        this->add_double_vector_to_hdf5file (file_id, "/grad_rhoA_y", this->grad_rhoA[1]);
+        this->add_double_vector_to_hdf5file (file_id, "/grad_rhoB_x", this->grad_rhoB[0]);
+        this->add_double_vector_to_hdf5file (file_id, "/grad_rhoB_y", this->grad_rhoB[1]);
+        this->add_double_vector_to_hdf5file (file_id, "/grad_rhoC_x", this->grad_rhoC[0]);
+        this->add_double_vector_to_hdf5file (file_id, "/grad_rhoC_y", this->grad_rhoC[1]);
+
         // Save hex positions
         vector<float> vx, vy;
         for (auto h : this->hg->hexen) {
@@ -554,75 +562,16 @@ public:
         this->add_double_to_hdf5file (file_id, "/d", this->d);
 
         herr_t status = H5Fclose (file_id);
-    }
+        if (status) {
 
-    /*!
-     * Makes necessary calls to add a double to an HDF5 file store,
-     * using path as the name of the variable. Path could be /myvar or
-     * /somegroup/myvar, though I think you'd have to have created the
-     * group for the latter.
-     */
-    void add_double_to_hdf5file (hid_t file_id, const char* path, const double& val) {
-        hsize_t dim_singleparam[1];
-        herr_t status;
-        dim_singleparam[0] = 1;
-        hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
-        hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        status = H5Dwrite (dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
-        status = H5Dclose (dataset_id);
-        status = H5Sclose (dataspace_id);
-    }
-
-    /*!
-     * Makes necessary calls to add a float to an HDF5 file store,
-     * using path as the name of the variable.
-     */
-    void add_float_to_hdf5file (hid_t file_id, const char* path, const float& val) {
-        hsize_t dim_singleparam[1];
-        herr_t status;
-        dim_singleparam[0] = 1;
-        hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
-        hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        status = H5Dwrite (dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
-        status = H5Dclose (dataset_id);
-        status = H5Sclose (dataspace_id);
-    }
-
-    /*!
-     * Makes necessary calls to add a vector of doubles to an HDF5
-     * file store, using path as the name of the variable.
-     */
-    void add_double_vector_to_hdf5file (hid_t file_id, const char* path, const vector<double>& vals) {
-        hsize_t dim_singleparam[1];
-        herr_t status;
-        dim_singleparam[0] = vals.size();
-        hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
-        hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        status = H5Dwrite (dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &(vals[0]));
-        status = H5Dclose (dataset_id);
-        status = H5Sclose (dataspace_id);
-    }
-
-    /*!
-     * Makes necessary calls to add a vector of floats to an HDF5
-     * file store, using path as the name of the variable.
-     */
-    void add_float_vector_to_hdf5file (hid_t file_id, const char* path, const vector<float>& vals) {
-        hsize_t dim_singleparam[1];
-        herr_t status;
-        dim_singleparam[0] = vals.size();
-        hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
-        hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        status = H5Dwrite (dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &(vals[0]));
-        status = H5Dclose (dataset_id);
-        status = H5Sclose (dataspace_id);
+        }
     }
 
     /*!
      * Load the results of running createFactorInitialConc(),
      * runExpressionDynamics() and populateChemoAttractants().
      */
-    void loadGenetics (void) {
+    void loadFactorExpression (void) {
         // Writeme.
     }
 
@@ -1228,6 +1177,75 @@ public:
         this->plotchemo (displays);
     }
 
+    /*!
+     * tools for reading and writing to HDF5 files. To be transferred
+     * into libmorpholgica in time.
+     */
+    //@{
+
+    /*!
+     * Makes necessary calls to add a double to an HDF5 file store,
+     * using path as the name of the variable. Path could be /myvar or
+     * /somegroup/myvar, though I think you'd have to have created the
+     * group for the latter.
+     */
+    void add_double_to_hdf5file (hid_t file_id, const char* path, const double& val) {
+        hsize_t dim_singleparam[1];
+        herr_t status;
+        dim_singleparam[0] = 1;
+        hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
+        hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Dwrite (dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
+        status = H5Dclose (dataset_id);
+        status = H5Sclose (dataspace_id);
+    }
+
+    /*!
+     * Makes necessary calls to add a float to an HDF5 file store,
+     * using path as the name of the variable.
+     */
+    void add_float_to_hdf5file (hid_t file_id, const char* path, const float& val) {
+        hsize_t dim_singleparam[1];
+        herr_t status;
+        dim_singleparam[0] = 1;
+        hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
+        hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Dwrite (dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &val);
+        status = H5Dclose (dataset_id);
+        status = H5Sclose (dataspace_id);
+    }
+
+    /*!
+     * Makes necessary calls to add a vector of doubles to an HDF5
+     * file store, using path as the name of the variable.
+     */
+    void add_double_vector_to_hdf5file (hid_t file_id, const char* path, const vector<double>& vals) {
+        hsize_t dim_singleparam[1];
+        herr_t status;
+        dim_singleparam[0] = vals.size();
+        hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
+        hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Dwrite (dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &(vals[0]));
+        status = H5Dclose (dataset_id);
+        status = H5Sclose (dataspace_id);
+    }
+
+    /*!
+     * Makes necessary calls to add a vector of floats to an HDF5
+     * file store, using path as the name of the variable.
+     */
+    void add_float_vector_to_hdf5file (hid_t file_id, const char* path, const vector<float>& vals) {
+        hsize_t dim_singleparam[1];
+        herr_t status;
+        dim_singleparam[0] = vals.size();
+        hid_t dataspace_id = H5Screate_simple (1, dim_singleparam, NULL);
+        hid_t dataset_id = H5Dcreate2 (file_id, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Dwrite (dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &(vals[0]));
+        status = H5Dclose (dataset_id);
+        status = H5Sclose (dataspace_id);
+    }
+    //@}
+
 }; // RD_2D_Karb
 
 int main (int argc, char **argv)
@@ -1278,9 +1296,6 @@ int main (int argc, char **argv)
     } catch (const exception& e) {
         cerr << "Exception initialising RD_2D_Karb object: " << e.what() << endl;
     }
-
-    // Create the morphologica world (allows logging, otherwise not very necessary?)
-    //morph::World W("w0", "logs/w0.log", rseed, M.dt);
 
     // Start the loop
     bool doing = true;
