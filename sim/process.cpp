@@ -836,6 +836,8 @@ public:
         this->plot_f (this->a, disps[2]);
         this->plot_f (this->c, disps[3]);
 
+        this->plot_contour (this->c, disps[4], 0.75);
+
         // To enable examination, keep replotting these:
         this->plotchemo (disps);
         this->plotexpression (disps);
@@ -918,6 +920,96 @@ public:
         disp.redrawDisplay();
     }
 
+    void plot_contour (vector<vector<double> >& f, morph::Gdisplay& disp, double threshold) {
+
+        vector<double> fix(3, 0.0);
+        vector<double> eye(3, 0.0);
+        vector<double> rot(3, 0.0);
+
+        // Copies data to plot out of the model
+        vector<double> maxa (5, -1e7);
+        vector<double> mina (5, +1e7);
+
+        // Determines min and max
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == false) {
+                for (unsigned int i = 0; i<this->N; ++i) {
+                    if (f[i][h.vi]>maxa[i]) { maxa[i] = f[i][h.vi]; }
+                    if (f[i][h.vi]<mina[i]) { mina[i] = f[i][h.vi]; }
+                }
+            }
+        }
+
+        vector<double> scalea (5, 0);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            scalea[i] = 1.0 / (maxa[i]-mina[i]);
+        }
+
+        // Re-normalize
+        vector<vector<double> > norm_a;
+        this->resize_vector_vector (norm_a);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            for (unsigned int h=0; h<this->nhex; h++) {
+                norm_a[i][h] = fmin (fmax (((f[i][h]) - mina[i]) * scalea[i], 0.0), 1.0);
+            }
+        }
+
+        // Draw
+        double c = threshold;
+        disp.resetDisplay (fix, eye, rot);
+        array<float,3> cl_blk = {0.0f, 0.0f, 0.0f};
+
+        for (unsigned int i = 0; i<this->N; ++i) {
+            array<float,3> cl_b = morph::Tools::HSVtoRGB ((double)i/(double)(this->N),1.,1.);
+            for (auto h : this->hg->hexen) {
+                if (h.onBoundary() == false) {
+                    if (norm_a[i][h.vi]<c) {
+                        if (norm_a[i][h.ne->vi]>c && h.has_ne) {
+                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 0);
+                        }
+                        if (norm_a[i][h.nne->vi]>c && h.has_nne) {
+                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 1);
+                        }
+                        if (norm_a[i][h.nnw->vi]>c && h.has_nnw) {
+                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 2);
+                        }
+                        if (norm_a[i][h.nw->vi]>c && h.has_nw) {
+                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 3);
+                        }
+                        if (norm_a[i][h.nsw->vi]>c && h.has_nsw) {
+                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 4);
+                        }
+                        if (norm_a[i][h.nse->vi]>c && h.has_nse) {
+                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 5);
+                        }
+                    }
+
+                } else { // h.onBoundary() is true
+
+                    if (!h.has_ne) {
+                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 0);
+                    }
+                    if (!h.has_nne) {
+                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 1);
+                    }
+                    if (!h.has_nnw) {
+                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 2);
+                    }
+                    if (!h.has_nw) {
+                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 3);
+                    }
+                    if (!h.has_nsw) {
+                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 4);
+                    }
+                    if (!h.has_nse) {
+                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 5);
+                    }
+                }
+            }
+        }
+        disp.redrawDisplay();
+    }
+
     /*!
      * Plot expression of emx, pax and fgf
      */
@@ -966,17 +1058,18 @@ public:
         array<float,3> offset3 = { hgwidth+(hgwidth/20), 0.0f, 0.0f };
 
         for (auto h : this->hg->hexen) {
-            array<float,3> cl_emx = morph::Tools::getJetColorF (norm_emx[h.vi]);
+            array<float,3> cl_emx = morph::Tools::HSVtoRGB (0.0, norm_emx[h.vi], 1.0);
             disps[0].drawHex (h.position(), offset1, (h.d/2.0f), cl_emx);
         }
         for (auto h : this->hg->hexen) {
-            array<float,3> cl_pax = morph::Tools::getJetColorF (norm_pax[h.vi]);
+            array<float,3> cl_pax = morph::Tools::HSVtoRGB (0.33, norm_pax[h.vi], 1.0);
             disps[0].drawHex (h.position(), offset2, (h.d/2.0f), cl_pax);
         }
         for (auto h : this->hg->hexen) {
-            array<float,3> cl_fgf = morph::Tools::getJetColorF (norm_fgf[h.vi]);
+            array<float,3> cl_fgf = morph::Tools::HSVtoRGB (0.66, norm_fgf[h.vi], 1.0);
             disps[0].drawHex (h.position(), offset3, (h.d/2.0f), cl_fgf);
         }
+
         disps[0].redrawDisplay();
     }
     /*!
@@ -1387,6 +1480,12 @@ int main (int argc, char **argv)
 
     winTitle = worldName + ": c[0] to c[4]";
     displays.push_back (morph::Gdisplay (1700, 300, 100, 900, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
+    displays.back().resetDisplay (fix, eye, rot);
+    displays.back().redrawDisplay();
+
+    // SW - Contours
+    winTitle = worldName + ": contours";
+    displays.push_back (morph::Gdisplay (500, 500, 100, 900, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
