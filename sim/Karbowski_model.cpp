@@ -102,9 +102,12 @@ int main (int argc, char **argv)
     double w1 = 2.4, w2 = 2.1, v1 = 2.6, v2 = 2.7;
 
     vector<double> gammaA(axontypes,0.), gammaB(axontypes,0.), gammaC(axontypes,0.);
-    gammaA[0]=1.6, gammaA[1]=-0.4, gammaA[2]=-2.21, gammaA[3]=-2.1, gammaA[4]=-2.45;
-    gammaB[0]=-0.6, gammaB[1]=-0.5, gammaB[2]=0.4, gammaB[3]=-0.5, gammaB[4]=-1.0;
-    gammaC[0]=-2.9, gammaC[1]=-2.5, gammaC[2]=-2.23, gammaC[3]=-0.6, gammaC[4]=1.7;
+//    gammaA[0]=1.6, gammaA[1]=-0.4, gammaA[2]=-2.21, gammaA[3]=-2.1, gammaA[4]=-2.45;
+//    gammaB[0]=-0.6, gammaB[1]=-0.5, gammaB[2]=0.4, gammaB[3]=-0.5, gammaB[4]=-1.0;
+//    gammaC[0]=-2.9, gammaC[1]=-2.5, gammaC[2]=-2.23, gammaC[3]=-0.6, gammaC[4]=1.7;
+    gammaA[0]=1, gammaA[1]=-0, gammaA[2]=-0, gammaA[3]=-0, gammaA[4]=-0;
+    gammaB[0]=0, gammaB[1]=0, gammaB[2]=0, gammaB[3]=0, gammaB[4]=0;
+    gammaC[0]=-0, gammaC[1]=-0, gammaC[2]=-0, gammaC[3]=-0, gammaC[4]=1;
 
     double theta1 = 0.77, theta2 = 0.5, theta3 = 0.39, theta4 = 0.08;
     double kA = 0.58, kB = 0.9, kC = 0.55;
@@ -155,6 +158,21 @@ int main (int argc, char **argv)
             G[i][xi] = pAs[xi] + pBs[xi] + pCs[xi];
         }
     }
+
+    // Save G.
+    {
+        ofstream outFile;
+        stringstream fname;
+        fname << argv[2] << ".G";
+        outFile.open(fname.str().c_str(), ios::out|ios::trunc|ios::binary);
+        for (unsigned int i=0; i<G.size(); i++) {
+            for (unsigned int j=0; j<G[i].size(); j++) {
+                outFile.write ((char*)&G[i][j], sizeof(double));
+            }
+        }
+        outFile.close();
+    }
+
     // Initialise C to zero
     vector<vector<double> > C(axontypes);
     for (int i=0; i<axontypes; i++) {
@@ -205,6 +223,7 @@ int main (int argc, char **argv)
             for (int xi=0; xi<nx; xi++) { q.push_back(&f[xi]); }
             Q.push_back (q);
         }
+        // FIXME Add storage of g.
     }
 
 
@@ -243,7 +262,7 @@ int main (int argc, char **argv)
                 q[xi] = A[i][xi] + k3[xi] * dt;
             }
 
-            vector<double> k4=compute_axonalbranchflux (q, G[i], D, dx, alpha_C_beta_nA);
+            vector<double> k4 = compute_axonalbranchflux (q, G[i], D, dx, alpha_C_beta_nA);
             for (int xi=0; xi<nx; xi++) {
                 A[i][xi] += (k1[xi] + 2. * (k2[xi] + k3[xi]) + k4[xi]) * sixthdt;
             }
@@ -277,6 +296,22 @@ int main (int argc, char **argv)
             }
         }
 
+        // STORE DATA TO BINARY FILE
+        if (t%100 == 0) {
+            ofstream outFile;
+            stringstream fname;
+            fname << argv[2] << ".";
+            fname.width(6);
+            fname.fill('0');
+            fname << t;
+            outFile.open(fname.str().c_str(), ios::out|ios::trunc|ios::binary);
+            for (unsigned int i=0; i<Q.size(); i++) {
+                for (unsigned int j=0; j<Q[i].size(); j++) {
+                    outFile.write ((char*)Q[i][j], sizeof(double));
+                }
+            }
+            outFile.close();
+        }
     }
 
     // STORE DATA TO BINARY FILE
