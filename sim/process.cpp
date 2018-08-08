@@ -14,7 +14,6 @@
 #include <omp.h>
 #endif
 #include <hdf5.h>
-//#include <hdf5_hl.h>
 
 #define DEBUG 1
 #define DBGSTREAM std::cout
@@ -358,6 +357,12 @@ public:
     }
 
     /*!
+     * Do what Karbowski et al did, or just populate rhoA/B/C with
+     * even Gaussians and use symmetrical gammas?
+     */
+    //#define KARBOWSKI_APPROACH 1
+
+    /*!
      * Initialise HexGrid, variables and parameters. Carry out
      * one-time computations of the model.
      */
@@ -435,25 +440,25 @@ public:
         this->gammaC[3] =  -0.6  * gammagain; // Repelled at right
         this->gammaC[4] =   1.7  * gammagain; // Attracted at right
 
+#ifndef KARBOWSKI_APPROACH
         // Above are the Karbowski numbers. Now lets reset em
-#if 1
-        gammagain = 1.0;
-        this->gammaA[0] =    4 * gammagain;
-        this->gammaA[1] =   -1 * gammagain;
-        this->gammaA[2] =   -1 * gammagain;
-        this->gammaA[3] =   -1 * gammagain;
-        this->gammaA[4] =   -1 * gammagain;
+        gammagain = 0.25;
+        this->gammaA[0] =   4 * gammagain;
+        this->gammaA[1] =   0 * gammagain;
+        this->gammaA[2] =   0 * gammagain;
+        this->gammaA[3] =   0 * gammagain;
+        this->gammaA[4] =   0 * gammagain;
 
-        this->gammaB[0] =   -1 * gammagain;
-        this->gammaB[1] =   -1 * gammagain;
-        this->gammaB[2] =   4 * gammagain;
-        this->gammaB[3] =   -1 * gammagain;
-        this->gammaB[4] =   -1 * gammagain;
+        this->gammaB[0] =   0 * gammagain;
+        this->gammaB[1] =   0 * gammagain;
+        this->gammaB[2] =   0 * gammagain;
+        this->gammaB[3] =   0 * gammagain;
+        this->gammaB[4] =   0 * gammagain;
 
-        this->gammaC[0] =   -1 * gammagain;
-        this->gammaC[1] =   -1 * gammagain;
-        this->gammaC[2] =   -1 * gammagain;
-        this->gammaC[3] =   -1 * gammagain;
+        this->gammaC[0] =   0 * gammagain;
+        this->gammaC[1] =   0 * gammagain;
+        this->gammaC[2] =   0 * gammagain;
+        this->gammaC[3] =   0 * gammagain;
         this->gammaC[4] =   4 * gammagain;
 #endif
 
@@ -470,6 +475,7 @@ public:
         this->beta[4] = 3;
 
         if (useSavedGenetics == false) {
+#ifdef KARBOWSKI_APPROACH
             // Generate the assumed uncoupled concentrations of growth/transcription factors
             this->createFactorInitialConc (this->diremx, this->Aemx, this->Chiemx, this->eta_emx);
             this->createFactorInitialConc (this->dirpax, this->Apax, this->Chipax, this->eta_pax);
@@ -477,7 +483,7 @@ public:
 
             // Run the expression dynamics, showing images as we go.
             this->runExpressionDynamics (displays);
-
+#endif
             // Can now populate rhoA, rhoB and rhoC according to the paper.
             this->populateChemoAttractants (displays);
 
@@ -509,7 +515,6 @@ public:
             // Load the data from files
             this->loadFactorExpression();
         }
-
     }
 
     /*!
@@ -747,10 +752,10 @@ public:
         }
 
         // Runge-Kutta:
-        #pragma omp parallel for
+        #pragma _omp parallel for
         for (unsigned int i=0; i<this->N; ++i) {
 
-            DBG2 ("alpha_c_beta_na["<<i<<"][0] = " << this->alpha_c_beta_na[i][0]);
+            DBG2 ("(a) alpha_c_beta_na["<<i<<"][0] = " << this->alpha_c_beta_na[i][0]);
 
             // Runge-Kutta integration for A
             vector<double> q(this->nhex, 0.0);
@@ -761,7 +766,7 @@ public:
                 k1[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 q[h] = this->a[i][h] + k1[h] * halfdt;
             }
-            DBG2 ("After RK stage 1, q[0]: " << q[0]);
+            DBG2 ("(a) After RK stage 1, q[0]: " << q[0]);
 
             vector<double> k2(this->nhex, 0.0);
             this->compute_divJ (q, i);
@@ -769,7 +774,7 @@ public:
                 k2[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 q[h] = this->a[i][h] + k2[h] * halfdt; // Kaboom!
             }
-            DBG2 ("After RK stage 2, q[0]:" << q[0] << " from a["<<i<<"][0]:" << a[i][0] << " divj["<<i<<"][0]:" << divJ[i][0] << " k2[0]:" << k2[0]);
+            DBG2 ("(a) After RK stage 2, q[0]:" << q[0] << " from a["<<i<<"][0]:" << a[i][0] << " divj["<<i<<"][0]:" << divJ[i][0] << " k2[0]:" << k2[0]);
 
             vector<double> k3(this->nhex, 0.0);
             this->compute_divJ (q, i);
@@ -777,7 +782,7 @@ public:
                 k3[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 q[h] = this->a[i][h] + k3[h] * dt;
             }
-            DBG2 ("After RK stage 3, q[0]: " << q[0]);
+            DBG2 ("(a) After RK stage 3, q[0]: " << q[0]);
 
             vector<double> k4(this->nhex, 0.0);
             this->compute_divJ (q, i);
@@ -785,19 +790,19 @@ public:
                 k4[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
                 a[i][h] += (k1[h] + 2.0 * (k2[h] + k3[h]) + k4[h]) * sixthdt;
             }
-            DBG2 ("After RK stage 4, a[" << i << "][0]: " << a[i][0]);
+            DBG2 ("(a) After RK stage 4, a[" << i << "][0]: " << a[i][0]);
 
-            DBG2("Debug a["<<i<<"]");
+            DBG2("(a) Debug a["<<i<<"]");
         }
 
         // 3. Do integration of c
-        #pragma omp parallel for
+        #pragma _omp parallel for
         for (unsigned int i=0; i<this->N; ++i) {
 
             for (unsigned int h=0; h<nhex; h++) {
                 this->betaterm[i][h] = beta[i] * n[h] * pow (a[i][h], k);
             }
-            DBG2 ("betaterm[" << i << "][0]: " << betaterm[i][0]);
+            DBG2 ("(c) betaterm[" << i << "][0]: " << betaterm[i][0]);
 
             // Runge-Kutta integration for C (or ci)
             vector<double> q(nhex,0.);
@@ -805,27 +810,27 @@ public:
             for (unsigned int h=0; h<nhex; h++) {
                 q[h] = c[i][h] + k1[h] * halfdt;
             }
-            DBG2 ("After RK stage 1, q[0]: " << q[0]);
+            DBG2 ("(c) After RK stage 1, q[0]: " << q[0]);
 
             vector<double> k2 = compute_dci_dt (q, i);
             for (unsigned int h=0; h<nhex; h++) {
                 q[h] = c[i][h] + k2[h] * halfdt;
             }
-            DBG2 ("After RK stage 2, q[0]: " << q[0]);
+            DBG2 ("(c) After RK stage 2, q[0]: " << q[0]);
 
             vector<double> k3 = compute_dci_dt (q, i);
             for (unsigned int h=0; h<nhex; h++) {
                 q[h] = c[i][h] + k3[h] * dt;
             }
-            DBG2 ("After RK stage 3, q[0]: " << q[0]);
+            DBG2 ("(c) After RK stage 3, q[0]: " << q[0]);
 
             vector<double> k4 = compute_dci_dt (q, i);
             for (unsigned int h=0; h<nhex; h++) {
                 c[i][h] += (k1[h]+2. * (k2[h] + k3[h]) + k4[h]) * sixthdt;
             }
-            DBG2 ("After RK stage 4, c["<<i<<"][0]: " << c[i][0]);
+            DBG2 ("(c) After RK stage 4, c["<<i<<"][0]: " << c[i][0]);
 
-            DBG2("Debug c["<<i<<"]");
+            DBG2("(c) Debug c["<<i<<"]");
         }
     }
 
@@ -1326,6 +1331,7 @@ public:
      * Using this->emx, this->pax and this->fgf, populate rhoA/B/C
      */
     void populateChemoAttractants (vector<morph::Gdisplay>& displays) {
+#ifdef KARBOWSKI_APPROACH
         // chemo-attraction gradient. cf Fig 1 of Karb 2004
         #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
@@ -1333,6 +1339,29 @@ public:
             this->rhoB[h] = (kB/2.)*(1.+tanh((theta2-fgf[h])/sigmaB))*(kB/2.)*(1.+tanh((fgf[h]-theta3)/sigmaB));
             this->rhoC[h] = (kC/2.)*(1.+tanh((theta4-fgf[h])/sigmaC));
         }
+#else
+        // Instead of using the Karbowski equations, just make some gaussian hills
+        // this->createGaussian1D (-0.5, 0.0, 0.001, 0.1, this->rhoA); // Fails for some reason.
+        // this->createGaussian1D (+0.0, 0.0, 0.001, 0.1, this->rhoB);
+        // this->createGaussian1D (+0.5, 0.0, 0.001, 0.1, this->rhoC);
+        double phi = M_PI*0.0;
+        double sigma = 0.3;
+        double xoffA = -0.5;
+        double xoffB = 0.0;
+        double xoffC = 0.5;
+        double cosphi = (double) cos (phi);
+        double sinphi = (double) sin (phi);
+        DBG("Populate");
+        for (auto h : this->hg->hexen) {
+            double x_ = (h.x * cosphi) + (h.y * sinphi);
+            this->rhoA[h.vi] = 1.0 * exp(-((x_-xoffA)*(x_-xoffA)) / sigma);
+            if (abs(this->rhoA[h.vi]) > 1) {
+                DBG ("Large rhoA for (" << h.ri << "," << h.gi << ")")
+            }
+            this->rhoB[h.vi] = 1.0 * exp(-((x_-xoffB)*(x_-xoffB)) / sigma);
+            this->rhoC[h.vi] = 1.0 * exp(-((x_-xoffC)*(x_-xoffC)) / sigma);
+        }
+#endif
         this->plotchemo (displays);
     }
 
@@ -1439,6 +1468,80 @@ public:
         }
     }
     //@}
+
+    /*!
+     * Create a symmetric, 2D Gaussian hill centred at coordinate (x,y) with
+     * width sigma and height gain. Place result into @a result.
+     */
+    void createGaussian (float x, float y, double gain, double sigma, vector<double>& result) {
+
+        // Once-only parts of the calculation of the Gaussian.
+        double root_2_pi = 2.506628275;
+        double one_over_sigma_root_2_pi = 1 / sigma * root_2_pi;
+        double two_sigma_sq = 2 * sigma * sigma;
+
+        // Gaussian dist. result, and a running sum of the results:
+        double gauss = 0.0;
+        double sum = 0.0;
+
+        // x and y components of the vector from (x,y) to any given Hex.
+        float rx = 0.0f, ry = 0.0f;
+        // distance from any Hex to (x,y)
+        float r = 0.0f;
+
+        // Calculate each element of the kernel:
+        for (auto h : this->hg->hexen) {
+            rx = x - h.x;
+            ry = y - h.y;
+            r = sqrt (rx*rx + ry*ry);
+            gauss = gain * (one_over_sigma_root_2_pi
+                            * exp ( static_cast<double>(-(r*r))
+                                    / two_sigma_sq ));
+            result[h.vi] = gauss;
+            sum += gauss;
+            ++k;
+        }
+
+        // Normalise the kernel to 1 by dividing by the sum:
+        unsigned int j = this->nhex;
+        while (j > 0) {
+            --j;
+            result[j] = result[j] / sum;
+        }
+    }
+
+    /*!
+     * Create a symmetric, 1D Gaussian hill centred at coordinate (x) with
+     * width sigma and height gain. Place result into @a result.
+     */
+    void createGaussian1D (float x, float phi, double gain, double sigma, vector<double>& result) {
+
+        // Once-only parts of the calculation of the Gaussian.
+        double root_2_pi = 2.506628275;
+        double one_over_sigma_root_2_pi = 1 / sigma * root_2_pi;
+        double two_sigma_sq = 2 * sigma * sigma;
+
+        // Gaussian dist. result, and a running sum of the results:
+        double gauss = 0.0;
+
+        double cosphi = (double) cos (phi);
+        double sinphi = (double) sin (phi);
+
+        // x and y components of the vector from (x,y) to any given Hex.
+        float rx = 0.0f, ry = 0.0f;
+
+        // Calculate each element of the kernel:
+        for (auto h : this->hg->hexen) {
+            rx = x - h.x;
+            ry = 0 - h.y;
+            double x_ = (rx * cosphi) + (ry * sinphi);
+            gauss = gain * (one_over_sigma_root_2_pi
+                            * exp ( static_cast<double>(-(x_*x_))
+                                    / two_sigma_sq ));
+            result[h.vi] = gauss;
+            ++k;
+        }
+    }
 
 }; // RD_2D_Karb
 
