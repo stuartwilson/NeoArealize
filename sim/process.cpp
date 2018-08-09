@@ -249,6 +249,12 @@ public:
     HexGrid* hg;
 
     /*!
+     * Store Hex positions for saving.
+     */
+    vector<float> hgvx;
+    vector<float> hgvy;
+
+    /*!
      * Hex to hex distance. Populate this from hg.d after hg has been
      * initialised.
      */
@@ -357,8 +363,11 @@ public:
     }
 
     /*!
-     * Do what Karbowski et al did, or just populate rhoA/B/C with
-     * even Gaussians and use symmetrical gammas?
+     * Do what Karbowski et al did, run a set of equations to compute
+     * rhoA/B/C, and use their gamma parameters, or just populate
+     * rhoA/B/C with equal sized Gaussian waves and use symmetrical
+     * gammas? This compile-time approach is a bit hacky, but serves
+     * for the time being.
      */
     //#define KARBOWSKI_APPROACH 1
 
@@ -381,6 +390,11 @@ public:
         this->nhex = this->hg->num();
         // Spatial d comes from the HexGrid, too.
         this->d = this->hg->getd();
+        // Save hex positions in vectors for datafile saving
+        for (auto h : this->hg->hexen) {
+            this->hgvx.push_back (h.x);
+            this->hgvy.push_back (h.y);
+        }
 
         // Resize and zero-initialise the various containers
         this->resize_vector_vector (this->c);
@@ -422,7 +436,7 @@ public:
 
         // Populate parameters
         double gammagain = 1.0;
-        this->gammaA[0] =   1.6  * gammagain; // Attracted to left OR
+        this->gammaA[0] =   1.6  * gammagain; // Attracted to left
         this->gammaA[1] =  -0.4  * gammagain; // Repelled at left
         this->gammaA[2] =  -2.21 * gammagain; // Strong repulsion at left
         this->gammaA[3] =  -2.1  * gammagain; // Strong repulsion at left
@@ -441,25 +455,28 @@ public:
         this->gammaC[4] =   1.7  * gammagain; // Attracted at right
 
 #ifndef KARBOWSKI_APPROACH
-        // Above are the Karbowski numbers. Now lets reset em
+        // Above are the Karbowski numbers. Here, I reset them with some alternatives
         gammagain = 0.25;
-        this->gammaA[0] =   4 * gammagain;
-        this->gammaA[1] =   0 * gammagain;
-        this->gammaA[2] =   0 * gammagain;
-        this->gammaA[3] =   0 * gammagain;
-        this->gammaA[4] =   0 * gammagain;
-
-        this->gammaB[0] =   0 * gammagain;
-        this->gammaB[1] =   0 * gammagain;
-        this->gammaB[2] =   0 * gammagain;
-        this->gammaB[3] =   0 * gammagain;
-        this->gammaB[4] =   0 * gammagain;
-
-        this->gammaC[0] =   0 * gammagain;
-        this->gammaC[1] =   0 * gammagain;
-        this->gammaC[2] =   0 * gammagain;
-        this->gammaC[3] =   0 * gammagain;
-        this->gammaC[4] =   4 * gammagain;
+        // red
+        this->gammaA[0] =  -1 * gammagain;
+        this->gammaB[0] =   4 * gammagain;
+        this->gammaC[0] =   4 * gammagain;
+        // yellow
+        this->gammaA[1] =   1 * gammagain;
+        this->gammaB[1] =   1 * gammagain;
+        this->gammaC[1] =   1 * gammagain;
+        // green
+        this->gammaA[2] =   4 * gammagain;
+        this->gammaB[2] =  -1 * gammagain;
+        this->gammaC[2] =   4 * gammagain;
+        // blue
+        this->gammaA[3] =  -1 * gammagain;
+        this->gammaB[3] =  -1 * gammagain;
+        this->gammaC[3] =  -1 * gammagain;
+        // magenta
+        this->gammaA[4] =   4 * gammagain;
+        this->gammaB[4] =   4 * gammagain;
+        this->gammaC[4] =  -1 * gammagain;
 #endif
 
         this->alpha[0] = 3;
@@ -515,6 +532,32 @@ public:
             // Load the data from files
             this->loadFactorExpression();
         }
+    }
+
+    void saveC (void) {
+        stringstream fname;
+        fname << "logs/c_";
+        fname.width(5);
+        fname.fill('0');
+        fname << this->stepCount << ".h5";
+        hid_t file_id = H5Fcreate (fname.str().c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            stringstream path;
+            path << "/c" << i;
+            this->add_double_vector_to_hdf5file (file_id, path.str().c_str(), this->c[i]);
+        }
+        this->saveHexPositions (file_id);
+        herr_t status = H5Fclose (file_id);
+        if (status) {
+            cerr << "status: " << status << endl;
+        }
+    }
+
+    void saveHexPositions (const hid_t& file_id) {
+        this->add_float_vector_to_hdf5file (file_id, "/x", this->hgvx);
+        this->add_float_vector_to_hdf5file (file_id, "/y", this->hgvy);
+        // And hex to hex distance
+        this->add_double_to_hdf5file (file_id, "/d", this->d);
     }
 
     /*!
@@ -596,16 +639,7 @@ public:
         this->add_double_vector_to_hdf5file (file_id, "/g_4_x", this->g[4][0]);
         this->add_double_vector_to_hdf5file (file_id, "/g_4_y", this->g[4][1]);
 
-        // Save hex positions
-        vector<float> vx, vy;
-        for (auto h : this->hg->hexen) {
-            vx.push_back (h.x);
-            vy.push_back (h.y);
-        }
-        this->add_float_vector_to_hdf5file (file_id, "/x", vx);
-        this->add_float_vector_to_hdf5file (file_id, "/y", vy);
-        // And hex to hex distance
-        this->add_double_to_hdf5file (file_id, "/d", this->d);
+        this->saveHexPositions (file_id);
 
         herr_t status = H5Fclose (file_id);
         if (status) {
@@ -752,7 +786,7 @@ public:
         }
 
         // Runge-Kutta:
-        #pragma _omp parallel for
+        #pragma omp parallel for
         for (unsigned int i=0; i<this->N; ++i) {
 
             DBG2 ("(a) alpha_c_beta_na["<<i<<"][0] = " << this->alpha_c_beta_na[i][0]);
@@ -796,7 +830,7 @@ public:
         }
 
         // 3. Do integration of c
-        #pragma _omp parallel for
+        #pragma omp parallel for
         for (unsigned int i=0; i<this->N; ++i) {
 
             for (unsigned int h=0; h<nhex; h++) {
@@ -917,7 +951,9 @@ public:
         disp.resetDisplay (fix, eye, rot);
         for (unsigned int i = 0; i<this->N; ++i) {
             for (auto h : this->hg->hexen) {
-                array<float,3> cl_a = morph::Tools::getJetColorF (norm_a[i][h.vi]);
+                //array<float,3> cl_a = morph::Tools::getJetColorF (norm_a[i][h.vi]);
+                array<float,3> cl_a = morph::Tools::HSVtoRGB ((float)i/(float)this->N,
+                                                              norm_a[i][h.vi], 1.0);
                 disp.drawHex (h.position(), offset, (h.d/2.0f), cl_a);
             }
             offset[0] += hgwidth + (hgwidth/20);
@@ -1123,17 +1159,17 @@ public:
         // Step through vectors or iterate through list? The latter should be just fine here.
         disps[1].resetDisplay (fix, eye, rot);
         for (auto h : this->hg->hexen) {
-            array<float,3> cl_rhoA = morph::Tools::getJetColorF (norm_rhoA[h.vi]);
+            array<float,3> cl_rhoA = morph::Tools::HSVtoRGB (0.0, norm_rhoA[h.vi], 1.0);
             disps[1].drawHex (h.position(), offset1, (h.d/2.0f), cl_rhoA);
         }
 
         for (auto h : this->hg->hexen) {
-            array<float,3> cl_rhoB = morph::Tools::getJetColorF (norm_rhoB[h.vi]);
+            array<float,3> cl_rhoB = morph::Tools::HSVtoRGB (0.33, norm_rhoB[h.vi], 1.0);
             disps[1].drawHex (h.position(), offset2, (h.d/2.0f), cl_rhoB);
         }
 
         for (auto h : this->hg->hexen) {
-            array<float,3> cl_rhoC = morph::Tools::getJetColorF (norm_rhoC[h.vi]);
+            array<float,3> cl_rhoC = morph::Tools::HSVtoRGB (0.66, norm_rhoC[h.vi], 1.0);
             disps[1].drawHex (h.position(), offset3, (h.d/2.0f), cl_rhoC);
         }
         disps[1].redrawDisplay();
@@ -1340,26 +1376,33 @@ public:
             this->rhoC[h] = (kC/2.)*(1.+tanh((theta4-fgf[h])/sigmaC));
         }
 #else
-        // Instead of using the Karbowski equations, just make some gaussian hills
-        // this->createGaussian1D (-0.5, 0.0, 0.001, 0.1, this->rhoA); // Fails for some reason.
+        // Instead of using the Karbowski equations, just make some gaussian 'waves'
+
+        // These function calls failed to work:
+        // this->createGaussian1D (-0.5, 0.0, 0.001, 0.1, this->rhoA);
         // this->createGaussian1D (+0.0, 0.0, 0.001, 0.1, this->rhoB);
         // this->createGaussian1D (+0.5, 0.0, 0.001, 0.1, this->rhoC);
+
+        // Potentially alter angle of Gaussian wave:
         double phi = M_PI*0.0;
-        double sigma = 0.3;
-        double xoffA = -0.5;
+
+        // Gaussian params:
+        double sigma = 0.1;
+        double gain = 1;
+
+        // Positions of the bumps:
+        double xoffA = -0.35;
         double xoffB = 0.0;
-        double xoffC = 0.5;
+        double xoffC = 0.4;
+
         double cosphi = (double) cos (phi);
         double sinphi = (double) sin (phi);
-        DBG("Populate");
+
         for (auto h : this->hg->hexen) {
             double x_ = (h.x * cosphi) + (h.y * sinphi);
-            this->rhoA[h.vi] = 1.0 * exp(-((x_-xoffA)*(x_-xoffA)) / sigma);
-            if (abs(this->rhoA[h.vi]) > 1) {
-                DBG ("Large rhoA for (" << h.ri << "," << h.gi << ")")
-            }
-            this->rhoB[h.vi] = 1.0 * exp(-((x_-xoffB)*(x_-xoffB)) / sigma);
-            this->rhoC[h.vi] = 1.0 * exp(-((x_-xoffC)*(x_-xoffC)) / sigma);
+            this->rhoA[h.vi] = gain * exp(-((x_-xoffA)*(x_-xoffA)) / sigma);
+            this->rhoB[h.vi] = gain * exp(-((x_-xoffB)*(x_-xoffB)) / sigma);
+            this->rhoC[h.vi] = gain * exp(-((x_-xoffC)*(x_-xoffC)) / sigma);
         }
 #endif
         this->plotchemo (displays);
@@ -1614,6 +1657,11 @@ int main (int argc, char **argv)
         displays[0].resetDisplay (fix, eye, rot);
         try {
             M.plot (displays);
+            // Save some frames ('c' variable only for now)
+            if (M.stepCount % 100 == 0) {
+                M.saveC();
+            }
+
         } catch (const exception& e) {
             cerr << "Caught exception calling M.plot(): " << e.what() << endl;
             doing = false;
