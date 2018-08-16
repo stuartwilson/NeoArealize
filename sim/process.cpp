@@ -25,13 +25,10 @@ using morph::HexGrid;
 using morph::ReadCurves;
 
 /*!
- * Do what Karbowski et al did, run a set of equations to compute
- * rhoA/B/C, and use their gamma parameters, or just populate
- * rhoA/B/C with equal sized Gaussian waves and use symmetrical
- * gammas? This compile-time approach is a bit hacky, but serves
- * for the time being.
+ * Define this to use manufactured guidance molecules, A, B and C, in
+ * contrast to what Karbowski et al did.
  */
-#define KARBOWSKI_APPROACH 1
+//#define MANUFACTURE_GUIDANCE_MOLECULES 1
 
 /*!
  * Reaction diffusion system; 2-D Karbowski 2004.
@@ -174,9 +171,9 @@ public:
      * Parameters for factor expression dynamics (Eqs 5-7)
      */
     //@{
-    double Aemx = 1;
-    double Apax = 1;
-    double Afgf = 1;
+    double Aemx = 1; // 1.34 in paper
+    double Apax = 1; // 1.4 in paper
+    double Afgf = 1; // 0.9 in paper
 
     // These are scaled rougly in proportion with the values in
     // Karb2004. I have about a 1mm long cortex, so their Chis are
@@ -184,6 +181,13 @@ public:
     double Chiemx = 0.64; // 25.6/40
     double Chipax = 0.68; // 27.3/40
     double Chifgf = 0.66; // 26.4/40
+
+    // See Karb2004 Fig 8 - the arealization duplication figure
+    //@{
+    bool useSecondFgfSource = false;
+    double Afgfprime = 1.5;
+    double Chifgfprime = 0.3; // 12/40
+    //@}
 
     double v1 = 2.6;
     double v2 = 2.7;
@@ -205,8 +209,8 @@ public:
      */
     //@{
     float diremx = 3.141593;
-    float dirpax = 0; // norm 0
-    float dirfgf = 0; // norm 0
+    float dirpax = 0;
+    float dirfgf = 0;
     //@}
 
     //@} end factor expression dynamics parameters
@@ -224,10 +228,10 @@ public:
     double kB = 0.9;
     double kC = 0.3;
 
-    double theta1 = 0.4; // 0.77 orig.
-    double theta2 = 0.5; // 0.5
+    double theta1 = 0.4;  // 0.77 originally, in the paper
+    double theta2 = 0.5;  // 0.5
     double theta3 = 0.39; // 0.39
-    double theta4 = 0.3; // 0.08
+    double theta4 = 0.3;  // 0.08
     //@}
 
     /*!
@@ -462,18 +466,25 @@ public:
         }
 
         if (useSavedGenetics == false) {
-#ifdef KARBOWSKI_APPROACH
+#ifdef MANUFACTURE_GUIDANCE_MOLECULES
+            // Construct Gaussian-waves rather than doing the full-Karbowski shebang.
+            this->makeupChemoAttractants();
+#else
             // Generate the assumed uncoupled concentrations of growth/transcription factors
             this->createFactorInitialConc (this->diremx, this->Aemx, this->Chiemx, this->eta_emx);
             this->createFactorInitialConc (this->dirpax, this->Apax, this->Chipax, this->eta_pax);
-            this->createFactorInitialConc (this->dirfgf, this->Afgf, this->Chifgf, this->eta_fgf);
+
+            // Should we use a second Fgf source, as in the Karbowski paper (Fig 8)?
+            if (this->useSecondFgfSource) {
+                this->createFactorInitialConc (this->dirfgf, this->Afgf, this->Afgfprime,
+                                               this->Chifgf, this->Chifgfprime, this->eta_fgf);
+            } else {
+                this->createFactorInitialConc (this->dirfgf, this->Afgf, this->Chifgf, this->eta_fgf);
+            }
             // Run the expression dynamics, showing images as we go.
             this->runExpressionDynamics (displays);
             // Can now populate rhoA, rhoB and rhoC according to the paper.
             this->populateChemoAttractants();
-#else
-            // Construct Gaussian-waves rather than doing the full-Karbowski shebang.
-            this->makeupChemoAttractants();
 #endif
             this->plotchemo (displays);
 
@@ -1321,6 +1332,35 @@ public:
     }
 
     /*!
+     * A special version of createFactorInitialConc which introduces a
+     * second source for the factor - see Karb2004 Fig 8.
+     */
+    void createFactorInitialConc (float phi,
+                                  double Afac, double Afacprime,
+                                  double chifac, double chifacprime,
+                                  vector<double>& result) {
+
+        // Work in a co-ordinate system rotated by phi radians, called x_, y_
+        double x_ = 0.0;
+        double x_rev = 0.0;
+
+        double cosphi = (double) cos (phi);
+        double sinphi = (double) sin (phi);
+
+        // Get minimum x and maximum x in the rotated co-ordinate system.
+        double x_min_ = this->hg->getXmin (phi);
+        double x_max_ = this->hg->getXmax (phi);
+
+        for (auto h : this->hg->hexen) {
+            // Rotate x, then offset by the minimum along that line
+            x_ = (h.x * cosphi) + (h.y * sinphi) - x_min_;
+            x_rev = x_max_ - (h.x * cosphi) + (h.y * sinphi);
+            // x_ here is x from the Hex.
+            result[h.vi] = Afac * exp (-(x_ * x_) / (chifac * chifac)) + Afacprime * exp (-(x_rev * x_rev) / (chifacprime * chifacprime));
+        }
+    }
+
+    /*!
      * Execute Eqs 5-7 of the Karbowski paper to find the steady state
      * of the growth/transcription factors after they have interacted
      * for a long time.
@@ -1350,6 +1390,7 @@ public:
         }
     }
 
+#ifdef MANUFACTURE_GUIDANCE_MOLECULES
     /*!
      * Generate Gaussian profiles for the chemo-attractants.
      *
@@ -1385,6 +1426,40 @@ public:
             this->rhoC[h.vi] = gain * exp(-((x_-xoffC)*(x_-xoffC)) / sigma);
         }
     }
+
+    /*!
+     * Create a symmetric, 1D Gaussian hill centred at coordinate (x) with
+     * width sigma and height gain. Place result into @a result.
+     */
+    void createGaussian1D (float x, float phi, double gain, double sigma, vector<double>& result) {
+
+        // Once-only parts of the calculation of the Gaussian.
+        double root_2_pi = 2.506628275;
+        double one_over_sigma_root_2_pi = 1 / sigma * root_2_pi;
+        double two_sigma_sq = 2 * sigma * sigma;
+
+        // Gaussian dist. result, and a running sum of the results:
+        double gauss = 0.0;
+
+        double cosphi = (double) cos (phi);
+        double sinphi = (double) sin (phi);
+
+        // x and y components of the vector from (x,y) to any given Hex.
+        float rx = 0.0f, ry = 0.0f;
+
+        // Calculate each element of the kernel:
+        for (auto h : this->hg->hexen) {
+            rx = x - h.x;
+            ry = 0 - h.y;
+            double x_ = (rx * cosphi) + (ry * sinphi);
+            gauss = gain * (one_over_sigma_root_2_pi
+                            * exp ( static_cast<double>(-(x_*x_))
+                                    / two_sigma_sq ));
+            result[h.vi] = gauss;
+            ++k;
+        }
+    }
+#endif
 
     /*!
      * tools for reading and writing to HDF5 files. To be transferred
@@ -1490,6 +1565,7 @@ public:
     }
     //@}
 
+#ifdef TWO_D_GAUSSIAN_NEEDED
     /*!
      * Create a symmetric, 2D Gaussian hill centred at coordinate (x,y) with
      * width sigma and height gain. Place result into @a result.
@@ -1530,39 +1606,7 @@ public:
             result[j] = result[j] / sum;
         }
     }
-
-    /*!
-     * Create a symmetric, 1D Gaussian hill centred at coordinate (x) with
-     * width sigma and height gain. Place result into @a result.
-     */
-    void createGaussian1D (float x, float phi, double gain, double sigma, vector<double>& result) {
-
-        // Once-only parts of the calculation of the Gaussian.
-        double root_2_pi = 2.506628275;
-        double one_over_sigma_root_2_pi = 1 / sigma * root_2_pi;
-        double two_sigma_sq = 2 * sigma * sigma;
-
-        // Gaussian dist. result, and a running sum of the results:
-        double gauss = 0.0;
-
-        double cosphi = (double) cos (phi);
-        double sinphi = (double) sin (phi);
-
-        // x and y components of the vector from (x,y) to any given Hex.
-        float rx = 0.0f, ry = 0.0f;
-
-        // Calculate each element of the kernel:
-        for (auto h : this->hg->hexen) {
-            rx = x - h.x;
-            ry = 0 - h.y;
-            double x_ = (rx * cosphi) + (ry * sinphi);
-            gauss = gain * (one_over_sigma_root_2_pi
-                            * exp ( static_cast<double>(-(x_*x_))
-                                    / two_sigma_sq ));
-            result[h.vi] = gauss;
-            ++k;
-        }
-    }
+#endif
 
 }; // RD_2D_Karb
 
@@ -1615,6 +1659,8 @@ int main (int argc, char **argv)
 
     // Instantiate the model object
     RD_2D_Karb M;
+    // You can:
+    // M.useSecondFgfSource = true;
     try {
         M.init (displays);
     } catch (const exception& e) {
