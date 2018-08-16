@@ -25,6 +25,15 @@ using morph::HexGrid;
 using morph::ReadCurves;
 
 /*!
+ * Do what Karbowski et al did, run a set of equations to compute
+ * rhoA/B/C, and use their gamma parameters, or just populate
+ * rhoA/B/C with equal sized Gaussian waves and use symmetrical
+ * gammas? This compile-time approach is a bit hacky, but serves
+ * for the time being.
+ */
+#define KARBOWSKI_APPROACH 1
+
+/*!
  * Reaction diffusion system; 2-D Karbowski 2004.
  */
 class RD_2D_Karb
@@ -172,9 +181,9 @@ public:
     // These are scaled rougly in proportion with the values in
     // Karb2004. I have about a 1mm long cortex, so their Chis are
     // divided by 40 to get these values.
-    double Chiemx = 0.64; //25.6/40
-    double Chipax = 0.68; //27.3/40
-    double Chifgf = 0.66; //26.4/40
+    double Chiemx = 0.64; // 25.6/40
+    double Chipax = 0.68; // 27.3/40
+    double Chifgf = 0.66; // 26.4/40
 
     double v1 = 2.6;
     double v2 = 2.7;
@@ -208,17 +217,17 @@ public:
      */
     //@{
     double sigmaA = 0.2;
-    double sigmaB = 0.2;
+    double sigmaB = 0.3;
     double sigmaC = 0.2;
 
-    double kA = 0.7;
+    double kA = 0.34;
     double kB = 0.9;
-    double kC = 0.48;
+    double kC = 0.3;
 
-    double theta1 = 0.9; // 0.77 orig.
+    double theta1 = 0.4; // 0.77 orig.
     double theta2 = 0.5; // 0.5
     double theta3 = 0.39; // 0.39
-    double theta4 = 0.08; // 0.08
+    double theta4 = 0.3; // 0.08
     //@}
 
     /*!
@@ -363,15 +372,6 @@ public:
     }
 
     /*!
-     * Do what Karbowski et al did, run a set of equations to compute
-     * rhoA/B/C, and use their gamma parameters, or just populate
-     * rhoA/B/C with equal sized Gaussian waves and use symmetrical
-     * gammas? This compile-time approach is a bit hacky, but serves
-     * for the time being.
-     */
-    //#define KARBOWSKI_APPROACH 1
-
-    /*!
      * Initialise HexGrid, variables and parameters. Carry out
      * one-time computations of the model.
      */
@@ -434,62 +434,32 @@ public:
         // Initialise a with noise
         this->noiseify_vector_vector (this->a);
 
-        // Populate parameters
-        double gammagain = 1.0;
-        this->gammaA[0] =   1.6  * gammagain; // Attracted to left
-        this->gammaA[1] =  -0.4  * gammagain; // Repelled at left
-        this->gammaA[2] =  -2.21 * gammagain; // Strong repulsion at left
-        this->gammaA[3] =  -2.1  * gammagain; // Strong repulsion at left
-        this->gammaA[4] =  -2.45 * gammagain; // Strong repulsion at left
-
-        this->gammaB[0] =  -0.6  * gammagain; // Repelled at midpoint
-        this->gammaB[1] =  -0.5  * gammagain; // Repelled at midpoint
-        this->gammaB[2] =   0.4  * gammagain; // Attracted at midpoint
-        this->gammaB[3] =  -0.5  * gammagain; // Repelled at midpoint
-        this->gammaB[4] =  -1    * gammagain; // Strongly repelled at midpoint
-
-        this->gammaC[0] =  -2.9  * gammagain; // Strongly repelled at right
-        this->gammaC[1] =  -2.5  * gammagain; // Strongly repelled at right
-        this->gammaC[2] =  -2.23 * gammagain; // Strongly repelled at right
-        this->gammaC[3] =  -0.6  * gammagain; // Repelled at right
-        this->gammaC[4] =   1.7  * gammagain; // Attracted at right
-
-#ifndef KARBOWSKI_APPROACH
-        // Above are the Karbowski numbers. Here, I reset them with some alternatives
-        gammagain = 0.25;
+        // The gamma values - notice the symmetry here.
         // red
-        this->gammaA[0] =  -1 * gammagain;
-        this->gammaB[0] =   4 * gammagain;
-        this->gammaC[0] =   4 * gammagain;
+        this->gammaA[0] = -2.0;
+        this->gammaB[0] =  0.5;
+        this->gammaC[0] =  0.5;
         // yellow
-        this->gammaA[1] =   1 * gammagain;
-        this->gammaB[1] =   1 * gammagain;
-        this->gammaC[1] =   1 * gammagain;
+        this->gammaA[1] = -2.0;
+        this->gammaB[1] = -2.0;
+        this->gammaC[1] =  0.5;
         // green
-        this->gammaA[2] =   4 * gammagain;
-        this->gammaB[2] =  -1 * gammagain;
-        this->gammaC[2] =   4 * gammagain;
+        this->gammaA[2] =  0.5;
+        this->gammaB[2] = -2.0;
+        this->gammaC[2] =  0.5;
         // blue
-        this->gammaA[3] =  -1 * gammagain;
-        this->gammaB[3] =  -1 * gammagain;
-        this->gammaC[3] =  -1 * gammagain;
+        this->gammaA[3] =  0.5;
+        this->gammaB[3] = -2.0;
+        this->gammaC[3] = -2.0;
         // magenta
-        this->gammaA[4] =   4 * gammagain;
-        this->gammaB[4] =   4 * gammagain;
-        this->gammaC[4] =  -1 * gammagain;
-#endif
+        this->gammaA[4] =  0.5;
+        this->gammaB[4] =  0.5;
+        this->gammaC[4] = -2.0;
 
-        this->alpha[0] = 3;
-        this->alpha[1] = 3;
-        this->alpha[2] = 3;
-        this->alpha[3] = 3;
-        this->alpha[4] = 3;
-
-        this->beta[0] = 3;
-        this->beta[1] = 3;
-        this->beta[2] = 3;
-        this->beta[3] = 3;
-        this->beta[4] = 3;
+        for (unsigned int i=0; i<this->N; ++i) {
+            this->alpha[i] = 3;
+            this->beta[i] = 3;
+        }
 
         if (useSavedGenetics == false) {
 #ifdef KARBOWSKI_APPROACH
@@ -497,12 +467,15 @@ public:
             this->createFactorInitialConc (this->diremx, this->Aemx, this->Chiemx, this->eta_emx);
             this->createFactorInitialConc (this->dirpax, this->Apax, this->Chipax, this->eta_pax);
             this->createFactorInitialConc (this->dirfgf, this->Afgf, this->Chifgf, this->eta_fgf);
-
             // Run the expression dynamics, showing images as we go.
             this->runExpressionDynamics (displays);
-#endif
             // Can now populate rhoA, rhoB and rhoC according to the paper.
-            this->populateChemoAttractants (displays);
+            this->populateChemoAttractants();
+#else
+            // Construct Gaussian-waves rather than doing the full-Karbowski shebang.
+            this->makeupChemoAttractants();
+#endif
+            this->plotchemo (displays);
 
             // Compute gradients of guidance molecule concentrations once only
             this->spacegrad2D (this->rhoA, this->grad_rhoA);
@@ -652,7 +625,7 @@ public:
      * runExpressionDynamics() and populateChemoAttractants().
      */
     void loadFactorExpression (void) {
-        // Writeme.
+        throw runtime_error ("Implement loadFactorExpression().");
     }
 
     /*!
@@ -1354,7 +1327,7 @@ public:
      */
     void runExpressionDynamics (vector<morph::Gdisplay>& displays) {
         #pragma omp parallel for
-        for (unsigned int t=0; t<100000; ++t) { // 300000 matches Stuart's 1D Karbowski model
+        for (unsigned int t=0; t<300000; ++t) { // 300000 matches Stuart's 1D Karbowski model
             for (auto h : this->hg->hexen) {
                 emx[h.vi] += tau_emx * (-emx[h.vi] + eta_emx[h.vi] / (1. + w2 * fgf[h.vi] + v2 * pax[h.vi]));
                 pax[h.vi] += tau_pax * (-pax[h.vi] + eta_pax[h.vi] / (1. + v1 * emx[h.vi]));
@@ -1365,10 +1338,9 @@ public:
     }
 
     /*!
-     * Using this->emx, this->pax and this->fgf, populate rhoA/B/C
+     * Using this->fgf and some hyperbolic tangents, populate rhoA/B/C
      */
-    void populateChemoAttractants (vector<morph::Gdisplay>& displays) {
-#ifdef KARBOWSKI_APPROACH
+    void populateChemoAttractants (void) {
         // chemo-attraction gradient. cf Fig 1 of Karb 2004
         #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
@@ -1376,8 +1348,15 @@ public:
             this->rhoB[h] = (kB/2.)*(1.+tanh((theta2-fgf[h])/sigmaB))*(kB/2.)*(1.+tanh((fgf[h]-theta3)/sigmaB));
             this->rhoC[h] = (kC/2.)*(1.+tanh((theta4-fgf[h])/sigmaC));
         }
-#else
-        // Instead of using the Karbowski equations, just make some gaussian 'waves'
+    }
+
+    /*!
+     * Generate Gaussian profiles for the chemo-attractants.
+     *
+     * Instead of using the Karbowski equations, just make some
+     * gaussian 'waves'
+     */
+    void makeupChemoAttractants (void) {
 
         // These function calls failed to work:
         // this->createGaussian1D (-0.5, 0.0, 0.001, 0.1, this->rhoA);
@@ -1405,8 +1384,6 @@ public:
             this->rhoB[h.vi] = gain * exp(-((x_-xoffB)*(x_-xoffB)) / sigma);
             this->rhoC[h.vi] = gain * exp(-((x_-xoffC)*(x_-xoffC)) / sigma);
         }
-#endif
-        this->plotchemo (displays);
     }
 
     /*!
