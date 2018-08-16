@@ -356,7 +356,7 @@ public:
                 vv[i][h.vi] = morph::Tools::randDouble() * randNoiseGain + randNoiseOffset;
                 if (h.distToBoundary > -0.5) { // It's possible that distToBoundary is set to -1.0
                     double bSig = 1.0 / ( 1.0 + exp (-100.0*(h.distToBoundary-0.02)) );
-                    vv[i][h.vi] = vv[i][h.vi] /* * bSig */;
+                    vv[i][h.vi] = vv[i][h.vi] * bSig;
                 }
             }
         }
@@ -999,6 +999,7 @@ public:
         double c = threshold;
         disp.resetDisplay (fix, eye, rot);
         array<float,3> cl_blk = {0.0f, 0.0f, 0.0f};
+        array<float,3> zero_offset = {0.0f, 0.0f, 0.0f};
 
         for (unsigned int i = 0; i<this->N; ++i) {
             array<float,3> cl_b = morph::Tools::HSVtoRGB ((double)i/(double)(this->N),1.,1.);
@@ -1006,44 +1007,44 @@ public:
                 if (h.onBoundary() == false) {
                     if (norm_a[i][h.vi]<c) {
                         if (norm_a[i][h.ne->vi]>c && h.has_ne) {
-                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 0);
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 0);
                         }
                         if (norm_a[i][h.nne->vi]>c && h.has_nne) {
-                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 1);
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 1);
                         }
                         if (norm_a[i][h.nnw->vi]>c && h.has_nnw) {
-                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 2);
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 2);
                         }
                         if (norm_a[i][h.nw->vi]>c && h.has_nw) {
-                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 3);
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 3);
                         }
                         if (norm_a[i][h.nsw->vi]>c && h.has_nsw) {
-                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 4);
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 4);
                         }
                         if (norm_a[i][h.nse->vi]>c && h.has_nse) {
-                            disp.drawHexSeg (h.position(), (h.d/2.0f), cl_b, 5);
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 5);
                         }
                     }
 
                 } else { // h.onBoundary() is true
 
                     if (!h.has_ne) {
-                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 0);
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 0);
                     }
                     if (!h.has_nne) {
-                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 1);
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 1);
                     }
                     if (!h.has_nnw) {
-                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 2);
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 2);
                     }
                     if (!h.has_nw) {
-                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 3);
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 3);
                     }
                     if (!h.has_nsw) {
-                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 4);
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 4);
                     }
                     if (!h.has_nse) {
-                        disp.drawHexSeg (h.position(), (h.d/2.0f), cl_blk, 5);
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 5);
                     }
                 }
             }
