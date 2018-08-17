@@ -20,6 +20,7 @@
 
 using std::vector;
 using std::array;
+using std::string;
 using std::stringstream;
 using std::cerr;
 using std::endl;
@@ -50,6 +51,20 @@ public:
     //! Square root of 3
     const double ROOT3 = 1.73205080756888;
     //@}
+
+    /*!
+     * The logpath for this model. Used when saving data out.
+     */
+    string logpath = "logs";
+
+    /*!
+     * Setter which attempts to ensure the path exists.
+     */
+    void setLogpath (const string p) {
+        this->logpath = p;
+        // Ensure log directory exists
+        morph::Tools::createDir (this->logpath);
+    }
 
     /*!
      * Holds the number of hexes in the populated HexGrid
@@ -295,6 +310,11 @@ public:
     unsigned int stepCount = 0;
 
     /*!
+     * A frame number, incremented when an image is plotted to a PNG file.
+     */
+    unsigned int frameN = 0;
+
+    /*!
      * Simple constructor; no arguments.
      */
     RD_2D_Karb (void) {
@@ -522,9 +542,17 @@ public:
         }
     }
 
+    /*!
+     * HDF5 file saving/loading methods
+     */
+    //@{
+
+    /*!
+     * Save the c variable.
+     */
     void saveC (void) {
         stringstream fname;
-        fname << "logs/c_";
+        fname << this->logpath << "/c_";
         fname.width(5);
         fname.fill('0');
         fname << this->stepCount << ".h5";
@@ -553,7 +581,9 @@ public:
      * runExpressionDynamics() and populateChemoAttractants().
      */
     void saveFactorExpression (void) {
-        hid_t file_id = H5Fcreate ("logs/factorexpression.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        string fname = this->logpath + "/factorexpression.h5";
+        cout << "Saving to file " << fname << endl;
+        hid_t file_id = H5Fcreate (fname.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
         // Save initial factor calculations - required in
         // createFactorInitialConc() and runExpressionDynamics()
@@ -643,92 +673,12 @@ public:
         throw runtime_error ("Implement loadFactorExpression().");
     }
 
-    /*!
-     * Examine the value in each Hex of the hexgrid of the scalar
-     * field f. If abs(f[h]) exceeds the size of dangerThresh, then
-     * output debugging information.
-     */
-    void debug_values (vector<double>& f, double dangerThresh) {
-        for (auto h : this->hg->hexen) {
-            if (abs(f[h.vi]) > dangerThresh) {
-                DBG ("Blow-up threshold exceeded at Hex.vi=" << h.vi << " ("<< h.ri <<","<< h.gi <<")" <<  ": " << f[h.vi]);
-                unsigned int wait = 0;
-                while (wait++ < 120) {
-                    usleep (1000000);
-                }
-            }
-        }
-    }
+    //@} // HDF5
 
     /*!
-     * 2D spatial integration of the function f. Result placed in gradf.
-     *
-     * For each Hex, work out the gradient in x and y directions
-     * using whatever neighbours can contribute to an estimate.
+     * Computation methods
      */
-    void spacegrad2D (vector<double>& f, array<vector<double>, 2>& gradf) {
-
-        // Note - East is positive x; North is positive y. Does this match how it's drawn in the display??
-        #pragma omp parallel for
-        for (unsigned int hi=0; hi<this->nhex; ++hi) {
-            Hex* h = this->hg->vhexen[hi];
-
-            gradf[0][h->vi] = 0.0;
-            gradf[1][h->vi] = 0.0;
-
-            DBG2 ("(h->ri,h->gi): (" << h->ri << "," << h->gi << ")");
-            // Find x gradient
-            if (h->has_ne && h->has_nw) {
-                DBG2 ("x case 1 f[h->ne]: " << f[h->ne->vi] << " - f[h->nw]" << f[h->nw->vi] << "/ h->d*2: " << (double)h->d * 2.0);
-                gradf[0][h->vi] = (f[h->ne->vi] - f[h->nw->vi]) / ((double)h->d * 2.0);
-            } else if (h->has_ne) {
-                DBG2 ("x case 2 f[h->ne]: " << f[h->ne->vi] << " - f[h]" << f[h->vi] << "/ h->d: " << (double)h->d);
-                gradf[0][h->vi] = (f[h->ne->vi] - f[h->vi]) / (double)h->d;
-            } else if (h->has_nw) {
-                DBG2 ("x case 3 f[h]: " << f[h->vi] << " - f[h->nw]" << f[h->nw->vi] << "/ h->d: " << (double)h->d);
-                gradf[0][h->vi] = (f[h->vi] - f[h->nw->vi]) / (double)h->d;
-            } else {
-                // zero gradient in x direction as no neighbours in
-                // those directions? Or possibly use the average of
-                // the gradient between the nw,ne and sw,se neighbours
-            }
-
-            // Find y gradient
-            if (h->has_nnw && h->has_nne && h->has_nsw && h->has_nse) {
-                // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
-#ifdef DEBUG2
-                if (h->vi == 0) {
-                    double _d = (double)h->getV();
-                    double _td = (double)h->getTwoV();
-                    DBG2 ("y case 1. getV: " << _d << " getTwoV: " << _td);
-                }
-#endif
-                gradf[1][h->vi] = ((f[h->nne->vi] - f[h->nse->vi]) + (f[h->nnw->vi] - f[h->nsw->vi])) / (double)h->getV();
-
-            } else if (h->has_nnw && h->has_nne ) {
-                //if (h->vi == 0) { DBG ("y case 2"); }
-                gradf[1][h->vi] = ( (f[h->nne->vi] + f[h->nnw->vi]) / 2.0 - f[h->vi]) / (double)h->getV();
-
-            } else if (h->has_nsw && h->has_nse) {
-                //if (h->vi == 0) { DBG ("y case 3"); }
-                gradf[1][h->vi] = (f[h->vi] - (f[h->nse->vi] + f[h->nsw->vi]) / 2.0) / (double)h->getV();
-
-            } else if (h->has_nnw && h->has_nsw) {
-                //if (h->vi == 0) { DBG ("y case 4"); }
-                gradf[1][h->vi] = (f[h->nnw->vi] - f[h->nsw->vi]) / (double)h->getTwoV();
-
-            } else if (h->has_nne && h->has_nse) {
-                //if (h->vi == 0) { DBG ("y case 5"); }
-                gradf[1][h->vi] = (f[h->nne->vi] - f[h->nse->vi]) / (double)h->getTwoV();
-            } else {
-                // Leave grady at 0
-            }
-
-            //if (h->vi == 0) {
-            //    DBG ("gradf[0/1][0]: " << gradf[0][0] << "," << gradf[1][0]);
-            //}
-        }
-    }
+    //@{
 
     /*!
      * Do a step through the model.
@@ -758,8 +708,8 @@ public:
             nsum += n[h->vi];
         }
         if (this->stepCount % 20 == 0) {
-            DBG("sum of all n is " << nsum);
-            DBG("sum of all c for i=0 is " << csum);
+            DBG ("sum of all n is " << nsum);
+            DBG ("sum of all c for i=0 is " << csum);
         }
 
         // 2. Do integration of a (RK in the 1D model). Involves computing axon branching flux.
@@ -857,311 +807,90 @@ public:
     }
 
     /*!
-     * Plot the system on @a disps
+     * Examine the value in each Hex of the hexgrid of the scalar
+     * field f. If abs(f[h]) exceeds the size of dangerThresh, then
+     * output debugging information.
      */
-    void plot (vector<morph::Gdisplay>& disps) {
-        this->plot_f (this->a, disps[2]);
-        this->plot_f (this->c, disps[3]);
-
-        this->plot_contour (this->c, disps[4], 0.75);
-
-        // To enable examination, keep replotting these:
-        this->plotchemo (disps);
-        this->plotexpression (disps);
+    void debug_values (vector<double>& f, double dangerThresh) {
+        for (auto h : this->hg->hexen) {
+            if (abs(f[h.vi]) > dangerThresh) {
+                DBG ("Blow-up threshold exceeded at Hex.vi=" << h.vi << " ("<< h.ri <<","<< h.gi <<")" <<  ": " << f[h.vi]);
+                unsigned int wait = 0;
+                while (wait++ < 120) {
+                    usleep (1000000);
+                }
+            }
+        }
     }
 
     /*!
-     * Plot a or c
+     * 2D spatial integration of the function f. Result placed in gradf.
+     *
+     * For each Hex, work out the gradient in x and y directions
+     * using whatever neighbours can contribute to an estimate.
      */
-    void plot_f (vector<vector<double> >& f, morph::Gdisplay& disp) {
-        vector<double> fix(3, 0.0);
-        vector<double> eye(3, 0.0);
-        eye[2] = -0.4;
-        vector<double> rot(3, 0.0);
+    void spacegrad2D (vector<double>& f, array<vector<double>, 2>& gradf) {
 
-#ifdef INDIVIDUAL_SCALING
-        // Copies data to plot out of the model
-        vector<double> maxa (5, -1e7);
-        vector<double> mina (5, +1e7);
-        // Determines min and max
-        for (auto h : this->hg->hexen) {
-            if (h.onBoundary() == false) {
-                for (unsigned int i = 0; i<this->N; ++i) {
-                    if (f[i][h.vi]>maxa[i]) { maxa[i] = f[i][h.vi]; }
-                    if (f[i][h.vi]<mina[i]) { mina[i] = f[i][h.vi]; }
+        // Note - East is positive x; North is positive y. Does this match how it's drawn in the display??
+        #pragma omp parallel for
+        for (unsigned int hi=0; hi<this->nhex; ++hi) {
+            Hex* h = this->hg->vhexen[hi];
+
+            gradf[0][h->vi] = 0.0;
+            gradf[1][h->vi] = 0.0;
+
+            DBG2 ("(h->ri,h->gi): (" << h->ri << "," << h->gi << ")");
+            // Find x gradient
+            if (h->has_ne && h->has_nw) {
+                DBG2 ("x case 1 f[h->ne]: " << f[h->ne->vi] << " - f[h->nw]" << f[h->nw->vi] << "/ h->d*2: " << (double)h->d * 2.0);
+                gradf[0][h->vi] = (f[h->ne->vi] - f[h->nw->vi]) / ((double)h->d * 2.0);
+            } else if (h->has_ne) {
+                DBG2 ("x case 2 f[h->ne]: " << f[h->ne->vi] << " - f[h]" << f[h->vi] << "/ h->d: " << (double)h->d);
+                gradf[0][h->vi] = (f[h->ne->vi] - f[h->vi]) / (double)h->d;
+            } else if (h->has_nw) {
+                DBG2 ("x case 3 f[h]: " << f[h->vi] << " - f[h->nw]" << f[h->nw->vi] << "/ h->d: " << (double)h->d);
+                gradf[0][h->vi] = (f[h->vi] - f[h->nw->vi]) / (double)h->d;
+            } else {
+                // zero gradient in x direction as no neighbours in
+                // those directions? Or possibly use the average of
+                // the gradient between the nw,ne and sw,se neighbours
+            }
+
+            // Find y gradient
+            if (h->has_nnw && h->has_nne && h->has_nsw && h->has_nse) {
+                // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
+#ifdef DEBUG2
+                if (h->vi == 0) {
+                    double _d = (double)h->getV();
+                    double _td = (double)h->getTwoV();
+                    DBG2 ("y case 1. getV: " << _d << " getTwoV: " << _td);
                 }
-            }
-        }
-        vector<double> scalea (5, 0);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            scalea[i] = 1.0 / (maxa[i]-mina[i]);
-        }
-
-        // Determine a colour from min, max and current value
-        vector<vector<double> > norm_a;
-        this->resize_vector_vector (norm_a);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            for (unsigned int h=0; h<this->nhex; h++) {
-                norm_a[i][h] = fmin (fmax (((f[i][h]) - mina[i]) * scalea[i], 0.0), 1.0);
-            }
-        }
-#else
-        // Copies data to plot out of the model
-        double maxa = -1e7;
-        double mina = +1e7;
-        // Determines min and max
-        for (auto h : this->hg->hexen) {
-            if (h.onBoundary() == false) {
-                for (unsigned int i = 0; i<this->N; ++i) {
-                    if (f[i][h.vi]>maxa) { maxa = f[i][h.vi]; }
-                    if (f[i][h.vi]<mina) { mina = f[i][h.vi]; }
-                }
-            }
-        }
-        double scalea = 1.0 / (maxa-mina);
-
-        // Determine a colour from min, max and current value
-        vector<vector<double> > norm_a;
-        this->resize_vector_vector (norm_a);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            for (unsigned int h=0; h<this->nhex; h++) {
-                norm_a[i][h] = fmin (fmax (((f[i][h]) - mina) * scalea, 0.0), 1.0);
-            }
-        }
 #endif
+                gradf[1][h->vi] = ((f[h->nne->vi] - f[h->nse->vi]) + (f[h->nnw->vi] - f[h->nsw->vi])) / (double)h->getV();
 
-        // Create an offset which we'll increment by the width of the
-        // map, starting from the left-most map (f[0])
-        float hgwidth = this->hg->getXmax()-this->hg->getXmin();
-        array<float,3> offset = { 2*(-hgwidth-(hgwidth/20)), 0.0f, 0.0f };
+            } else if (h->has_nnw && h->has_nne ) {
+                //if (h->vi == 0) { DBG ("y case 2"); }
+                gradf[1][h->vi] = ( (f[h->nne->vi] + f[h->nnw->vi]) / 2.0 - f[h->vi]) / (double)h->getV();
 
-        // Draw
-        disp.resetDisplay (fix, eye, rot);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            for (auto h : this->hg->hexen) {
-                //array<float,3> cl_a = morph::Tools::getJetColorF (norm_a[i][h.vi]);
-                array<float,3> cl_a = morph::Tools::HSVtoRGB ((float)i/(float)this->N,
-                                                              norm_a[i][h.vi], 1.0);
-                disp.drawHex (h.position(), offset, (h.d/2.0f), cl_a);
+            } else if (h->has_nsw && h->has_nse) {
+                //if (h->vi == 0) { DBG ("y case 3"); }
+                gradf[1][h->vi] = (f[h->vi] - (f[h->nse->vi] + f[h->nsw->vi]) / 2.0) / (double)h->getV();
+
+            } else if (h->has_nnw && h->has_nsw) {
+                //if (h->vi == 0) { DBG ("y case 4"); }
+                gradf[1][h->vi] = (f[h->nnw->vi] - f[h->nsw->vi]) / (double)h->getTwoV();
+
+            } else if (h->has_nne && h->has_nse) {
+                //if (h->vi == 0) { DBG ("y case 5"); }
+                gradf[1][h->vi] = (f[h->nne->vi] - f[h->nse->vi]) / (double)h->getTwoV();
+            } else {
+                // Leave grady at 0
             }
-            offset[0] += hgwidth + (hgwidth/20);
+
+            //if (h->vi == 0) {
+            //    DBG ("gradf[0/1][0]: " << gradf[0][0] << "," << gradf[1][0]);
+            //}
         }
-        disp.redrawDisplay();
-    }
-
-    void plot_contour (vector<vector<double> >& f, morph::Gdisplay& disp, double threshold) {
-
-        vector<double> fix(3, 0.0);
-        vector<double> eye(3, 0.0);
-        vector<double> rot(3, 0.0);
-
-        // Copies data to plot out of the model
-        vector<double> maxa (5, -1e7);
-        vector<double> mina (5, +1e7);
-
-        // Determines min and max
-        for (auto h : this->hg->hexen) {
-            if (h.onBoundary() == false) {
-                for (unsigned int i = 0; i<this->N; ++i) {
-                    if (f[i][h.vi]>maxa[i]) { maxa[i] = f[i][h.vi]; }
-                    if (f[i][h.vi]<mina[i]) { mina[i] = f[i][h.vi]; }
-                }
-            }
-        }
-
-        vector<double> scalea (5, 0);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            scalea[i] = 1.0 / (maxa[i]-mina[i]);
-        }
-
-        // Re-normalize
-        vector<vector<double> > norm_a;
-        this->resize_vector_vector (norm_a);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            for (unsigned int h=0; h<this->nhex; h++) {
-                norm_a[i][h] = fmin (fmax (((f[i][h]) - mina[i]) * scalea[i], 0.0), 1.0);
-            }
-        }
-
-        // Draw
-        double c = threshold;
-        disp.resetDisplay (fix, eye, rot);
-        array<float,3> cl_blk = {0.0f, 0.0f, 0.0f};
-        array<float,3> zero_offset = {0.0f, 0.0f, 0.0f};
-
-        for (unsigned int i = 0; i<this->N; ++i) {
-            array<float,3> cl_b = morph::Tools::HSVtoRGB ((double)i/(double)(this->N),1.,1.);
-            for (auto h : this->hg->hexen) {
-                if (h.onBoundary() == false) {
-                    if (norm_a[i][h.vi]<c) {
-                        if (norm_a[i][h.ne->vi]>c && h.has_ne) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 0);
-                        }
-                        if (norm_a[i][h.nne->vi]>c && h.has_nne) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 1);
-                        }
-                        if (norm_a[i][h.nnw->vi]>c && h.has_nnw) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 2);
-                        }
-                        if (norm_a[i][h.nw->vi]>c && h.has_nw) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 3);
-                        }
-                        if (norm_a[i][h.nsw->vi]>c && h.has_nsw) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 4);
-                        }
-                        if (norm_a[i][h.nse->vi]>c && h.has_nse) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 5);
-                        }
-                    }
-
-                } else { // h.onBoundary() is true
-
-                    if (!h.has_ne) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 0);
-                    }
-                    if (!h.has_nne) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 1);
-                    }
-                    if (!h.has_nnw) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 2);
-                    }
-                    if (!h.has_nw) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 3);
-                    }
-                    if (!h.has_nsw) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 4);
-                    }
-                    if (!h.has_nse) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 5);
-                    }
-                }
-            }
-        }
-        disp.redrawDisplay();
-    }
-
-    /*!
-     * Plot expression of emx, pax and fgf
-     */
-    void plotexpression (vector<morph::Gdisplay>& disps) {
-
-        vector<double> fix(3, 0.0);
-        vector<double> eye(3, 0.0);
-        eye[2] = -0.4;
-        vector<double> rot(3, 0.0);
-
-        // Determines min and max
-        double max = -1e7;
-        double min = +1e7;
-        for (auto h : this->hg->hexen) {
-            if (h.onBoundary() == false) {
-                if (this->emx[h.vi]>max) { max = this->emx[h.vi]; }
-                if (this->emx[h.vi]<min) { min = this->emx[h.vi]; }
-
-                if (this->pax[h.vi]>max) { max = this->pax[h.vi]; }
-                if (this->pax[h.vi]<min) { min = this->pax[h.vi]; }
-
-                if (this->fgf[h.vi]>max) { max = this->fgf[h.vi]; }
-                if (this->fgf[h.vi]<min) { min = this->fgf[h.vi]; }
-            }
-        }
-
-        double scale = 1.0 / (max-min);
-
-        // Determine a colour from min, max and current value
-        vector<double> norm_emx(this->nhex, 0.0);
-        vector<double> norm_pax(this->nhex, 0.0);
-        vector<double> norm_fgf(this->nhex, 0.0);
-        for (unsigned int h=0; h<this->nhex; h++) {
-            norm_emx[h] = fmin (fmax (((this->emx[h]) - min) * scale, 0.0), 1.0);
-            norm_pax[h] = fmin (fmax (((this->pax[h]) - min) * scale, 0.0), 1.0);
-            norm_fgf[h] = fmin (fmax (((this->fgf[h]) - min) * scale, 0.0), 1.0);
-        }
-
-        // Step through vectors or iterate through list? The latter should be just fine here.
-        disps[0].resetDisplay (fix, eye, rot);
-
-        // Set offsets for the three maps that we'll plot
-        float hgwidth = this->hg->getXmax()-this->hg->getXmin();
-        array<float,3> offset1 = { -hgwidth-(hgwidth/20), 0.0f, 0.0f };
-        array<float,3> offset2 = { 0.0f, 0.0f, 0.0f };
-        array<float,3> offset3 = { hgwidth+(hgwidth/20), 0.0f, 0.0f };
-
-        for (auto h : this->hg->hexen) {
-            array<float,3> cl_emx = morph::Tools::HSVtoRGB (0.0, norm_emx[h.vi], 1.0);
-            disps[0].drawHex (h.position(), offset1, (h.d/2.0f), cl_emx);
-        }
-        for (auto h : this->hg->hexen) {
-            array<float,3> cl_pax = morph::Tools::HSVtoRGB (0.33, norm_pax[h.vi], 1.0);
-            disps[0].drawHex (h.position(), offset2, (h.d/2.0f), cl_pax);
-        }
-        for (auto h : this->hg->hexen) {
-            array<float,3> cl_fgf = morph::Tools::HSVtoRGB (0.66, norm_fgf[h.vi], 1.0);
-            disps[0].drawHex (h.position(), offset3, (h.d/2.0f), cl_fgf);
-        }
-
-        disps[0].redrawDisplay();
-    }
-    /*!
-     * Plot concentrations of chemo-attractor molecules A, B and C.
-     */
-    void plotchemo (vector<morph::Gdisplay>& disps) {
-
-        vector<double> fix(3, 0.0);
-        vector<double> eye(3, 0.0);
-        eye[2] = -0.4;
-        vector<double> rot(3, 0.0);
-
-        double max = -1e7;
-        double min = +1e7;
-        // Determines min and max
-        for (auto h : this->hg->hexen) {
-            if (h.onBoundary() == false) {
-                if (this->rhoA[h.vi]>max) { max = this->rhoA[h.vi]; }
-                if (this->rhoA[h.vi]<min) { min = this->rhoA[h.vi]; }
-
-                if (this->rhoB[h.vi]>max) { max = this->rhoB[h.vi]; }
-                if (this->rhoB[h.vi]<min) { min = this->rhoB[h.vi]; }
-
-                if (this->rhoC[h.vi]>max) { max = this->rhoC[h.vi]; }
-                if (this->rhoC[h.vi]<min) { min = this->rhoC[h.vi]; }
-            }
-        }
-        double scale = 1.0 / (max-min);
-
-        // Determine a colour from min, max and current value
-        vector<double> norm_rhoA(this->nhex, 0.0);
-        vector<double> norm_rhoB(this->nhex, 0.0);
-        vector<double> norm_rhoC(this->nhex, 0.0);
-        for (unsigned int h=0; h<this->nhex; h++) {
-            norm_rhoA[h] = fmin (fmax (((this->rhoA[h]) - min) * scale, 0.0), 1.0);
-            norm_rhoB[h] = fmin (fmax (((this->rhoB[h]) - min) * scale, 0.0), 1.0);
-            norm_rhoC[h] = fmin (fmax (((this->rhoC[h]) - min) * scale, 0.0), 1.0);
-        }
-
-        // Set offsets for the three maps that we'll plot
-        float hgwidth = this->hg->getXmax()-this->hg->getXmin();
-        array<float,3> offset1 = { -hgwidth-(hgwidth/20), 0.0f, 0.0f };
-        array<float,3> offset2 = { 0.0f, 0.0f, 0.0f };
-        array<float,3> offset3 = { hgwidth+(hgwidth/20), 0.0f, 0.0f };
-
-        // Step through vectors or iterate through list? The latter should be just fine here.
-        disps[1].resetDisplay (fix, eye, rot);
-        for (auto h : this->hg->hexen) {
-            array<float,3> cl_rhoA = morph::Tools::HSVtoRGB (0.0, norm_rhoA[h.vi], 1.0);
-            disps[1].drawHex (h.position(), offset1, (h.d/2.0f), cl_rhoA);
-        }
-
-        for (auto h : this->hg->hexen) {
-            array<float,3> cl_rhoB = morph::Tools::HSVtoRGB (0.33, norm_rhoB[h.vi], 1.0);
-            disps[1].drawHex (h.position(), offset2, (h.d/2.0f), cl_rhoB);
-        }
-
-        for (auto h : this->hg->hexen) {
-            array<float,3> cl_rhoC = morph::Tools::HSVtoRGB (0.66, norm_rhoC[h.vi], 1.0);
-            disps[1].drawHex (h.position(), offset3, (h.d/2.0f), cl_rhoC);
-        }
-        disps[1].redrawDisplay();
     }
 
     /*!
@@ -1403,11 +1132,6 @@ public:
      */
     void makeupChemoAttractants (void) {
 
-        // These function calls failed to work:
-        // this->createGaussian1D (-0.5, 0.0, 0.001, 0.1, this->rhoA);
-        // this->createGaussian1D (+0.0, 0.0, 0.001, 0.1, this->rhoB);
-        // this->createGaussian1D (+0.5, 0.0, 0.001, 0.1, this->rhoC);
-
         // Potentially alter angle of Gaussian wave:
         double phi = M_PI*0.0;
 
@@ -1430,40 +1154,345 @@ public:
             this->rhoC[h.vi] = gain * exp(-((x_-xoffC)*(x_-xoffC)) / sigma);
         }
     }
+#endif
 
     /*!
-     * Create a symmetric, 1D Gaussian hill centred at coordinate (x) with
-     * width sigma and height gain. Place result into @a result.
+     * Plotting code
      */
-    void createGaussian1D (float x, float phi, double gain, double sigma, vector<double>& result) {
+    //@{
+    /*!
+     * Plot the system on @a disps
+     */
+    void plot (vector<morph::Gdisplay>& disps, bool savePngs = false) {
+        this->plot_f (this->a, disps[2]);
+        this->plot_f (this->c, disps[3]);
 
-        // Once-only parts of the calculation of the Gaussian.
-        double root_2_pi = 2.506628275;
-        double one_over_sigma_root_2_pi = 1 / sigma * root_2_pi;
-        double two_sigma_sq = 2 * sigma * sigma;
+        this->plot_contour (this->c, disps[4], 0.75);
 
-        // Gaussian dist. result, and a running sum of the results:
-        double gauss = 0.0;
+        // To enable examination, keep replotting these:
+        this->plotchemo (disps);
+        this->plotexpression (disps);
 
-        double cosphi = (double) cos (phi);
-        double sinphi = (double) sin (phi);
+        if (savePngs) {
+            // a
+            stringstream ff1;
+            ff1 << this->logpath << "/a_";
+            ff1 << std::setw(5) << std::setfill('0') << frameN;
+            ff1 << ".png";
+            disps[2].saveImage (ff1.str());
+            // c
+            stringstream ff2;
+            ff2 << this->logpath << "/c_";
+            ff2 << std::setw(5) << std::setfill('0') << frameN;
+            ff2 << ".png";
+            disps[3].saveImage (ff2.str());
+            // contours
+            stringstream ff3;
+            ff3 << this->logpath << "/cntr_";
+            ff3 << std::setw(5) << std::setfill('0') << frameN;
+            ff3 << ".png";
+            disps[4].saveImage (ff3.str());
 
-        // x and y components of the vector from (x,y) to any given Hex.
-        float rx = 0.0f, ry = 0.0f;
-
-        // Calculate each element of the kernel:
-        for (auto h : this->hg->hexen) {
-            rx = x - h.x;
-            ry = 0 - h.y;
-            double x_ = (rx * cosphi) + (ry * sinphi);
-            gauss = gain * (one_over_sigma_root_2_pi
-                            * exp ( static_cast<double>(-(x_*x_))
-                                    / two_sigma_sq ));
-            result[h.vi] = gauss;
-            ++k;
+            frameN++;
         }
     }
+
+    /*!
+     * Plot a or c
+     */
+    void plot_f (vector<vector<double> >& f, morph::Gdisplay& disp) {
+        vector<double> fix(3, 0.0);
+        vector<double> eye(3, 0.0);
+        eye[2] = -0.4;
+        vector<double> rot(3, 0.0);
+
+#ifdef INDIVIDUAL_SCALING
+        // Copies data to plot out of the model
+        vector<double> maxa (5, -1e7);
+        vector<double> mina (5, +1e7);
+        // Determines min and max
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == false) {
+                for (unsigned int i = 0; i<this->N; ++i) {
+                    if (f[i][h.vi]>maxa[i]) { maxa[i] = f[i][h.vi]; }
+                    if (f[i][h.vi]<mina[i]) { mina[i] = f[i][h.vi]; }
+                }
+            }
+        }
+        vector<double> scalea (5, 0);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            scalea[i] = 1.0 / (maxa[i]-mina[i]);
+        }
+
+        // Determine a colour from min, max and current value
+        vector<vector<double> > norm_a;
+        this->resize_vector_vector (norm_a);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            for (unsigned int h=0; h<this->nhex; h++) {
+                norm_a[i][h] = fmin (fmax (((f[i][h]) - mina[i]) * scalea[i], 0.0), 1.0);
+            }
+        }
+#else
+        // Copies data to plot out of the model
+        double maxa = -1e7;
+        double mina = +1e7;
+        // Determines min and max
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == false) {
+                for (unsigned int i = 0; i<this->N; ++i) {
+                    if (f[i][h.vi]>maxa) { maxa = f[i][h.vi]; }
+                    if (f[i][h.vi]<mina) { mina = f[i][h.vi]; }
+                }
+            }
+        }
+        double scalea = 1.0 / (maxa-mina);
+
+        // Determine a colour from min, max and current value
+        vector<vector<double> > norm_a;
+        this->resize_vector_vector (norm_a);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            for (unsigned int h=0; h<this->nhex; h++) {
+                norm_a[i][h] = fmin (fmax (((f[i][h]) - mina) * scalea, 0.0), 1.0);
+            }
+        }
 #endif
+
+        // Create an offset which we'll increment by the width of the
+        // map, starting from the left-most map (f[0])
+        float hgwidth = this->hg->getXmax()-this->hg->getXmin();
+        array<float,3> offset = { 2*(-hgwidth-(hgwidth/20)), 0.0f, 0.0f };
+
+        // Draw
+        disp.resetDisplay (fix, eye, rot);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            for (auto h : this->hg->hexen) {
+                //array<float,3> cl_a = morph::Tools::getJetColorF (norm_a[i][h.vi]);
+                array<float,3> cl_a = morph::Tools::HSVtoRGB ((float)i/(float)this->N,
+                                                              norm_a[i][h.vi], 1.0);
+                disp.drawHex (h.position(), offset, (h.d/2.0f), cl_a);
+            }
+            offset[0] += hgwidth + (hgwidth/20);
+        }
+        disp.redrawDisplay();
+    }
+
+    void plot_contour (vector<vector<double> >& f, morph::Gdisplay& disp, double threshold) {
+
+        vector<double> fix(3, 0.0);
+        vector<double> eye(3, 0.0);
+        vector<double> rot(3, 0.0);
+
+        // Copies data to plot out of the model
+        vector<double> maxa (5, -1e7);
+        vector<double> mina (5, +1e7);
+
+        // Determines min and max
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == false) {
+                for (unsigned int i = 0; i<this->N; ++i) {
+                    if (f[i][h.vi]>maxa[i]) { maxa[i] = f[i][h.vi]; }
+                    if (f[i][h.vi]<mina[i]) { mina[i] = f[i][h.vi]; }
+                }
+            }
+        }
+
+        vector<double> scalea (5, 0);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            scalea[i] = 1.0 / (maxa[i]-mina[i]);
+        }
+
+        // Re-normalize
+        vector<vector<double> > norm_a;
+        this->resize_vector_vector (norm_a);
+        for (unsigned int i = 0; i<this->N; ++i) {
+            for (unsigned int h=0; h<this->nhex; h++) {
+                norm_a[i][h] = fmin (fmax (((f[i][h]) - mina[i]) * scalea[i], 0.0), 1.0);
+            }
+        }
+
+        // Draw
+        double c = threshold;
+        disp.resetDisplay (fix, eye, rot);
+        array<float,3> cl_blk = {0.0f, 0.0f, 0.0f};
+        array<float,3> zero_offset = {0.0f, 0.0f, 0.0f};
+
+        for (unsigned int i = 0; i<this->N; ++i) {
+            array<float,3> cl_b = morph::Tools::HSVtoRGB ((double)i/(double)(this->N),1.,1.);
+            for (auto h : this->hg->hexen) {
+                if (h.onBoundary() == false) {
+                    if (norm_a[i][h.vi]<c) {
+                        if (norm_a[i][h.ne->vi]>c && h.has_ne) {
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 0);
+                        }
+                        if (norm_a[i][h.nne->vi]>c && h.has_nne) {
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 1);
+                        }
+                        if (norm_a[i][h.nnw->vi]>c && h.has_nnw) {
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 2);
+                        }
+                        if (norm_a[i][h.nw->vi]>c && h.has_nw) {
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 3);
+                        }
+                        if (norm_a[i][h.nsw->vi]>c && h.has_nsw) {
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 4);
+                        }
+                        if (norm_a[i][h.nse->vi]>c && h.has_nse) {
+                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 5);
+                        }
+                    }
+
+                } else { // h.onBoundary() is true
+
+                    if (!h.has_ne) {
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 0);
+                    }
+                    if (!h.has_nne) {
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 1);
+                    }
+                    if (!h.has_nnw) {
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 2);
+                    }
+                    if (!h.has_nw) {
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 3);
+                    }
+                    if (!h.has_nsw) {
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 4);
+                    }
+                    if (!h.has_nse) {
+                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 5);
+                    }
+                }
+            }
+        }
+        disp.redrawDisplay();
+    }
+
+    /*!
+     * Plot expression of emx, pax and fgf
+     */
+    void plotexpression (vector<morph::Gdisplay>& disps) {
+
+        vector<double> fix(3, 0.0);
+        vector<double> eye(3, 0.0);
+        eye[2] = -0.4;
+        vector<double> rot(3, 0.0);
+
+        // Determines min and max
+        double max = -1e7;
+        double min = +1e7;
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == false) {
+                if (this->emx[h.vi]>max) { max = this->emx[h.vi]; }
+                if (this->emx[h.vi]<min) { min = this->emx[h.vi]; }
+
+                if (this->pax[h.vi]>max) { max = this->pax[h.vi]; }
+                if (this->pax[h.vi]<min) { min = this->pax[h.vi]; }
+
+                if (this->fgf[h.vi]>max) { max = this->fgf[h.vi]; }
+                if (this->fgf[h.vi]<min) { min = this->fgf[h.vi]; }
+            }
+        }
+
+        double scale = 1.0 / (max-min);
+
+        // Determine a colour from min, max and current value
+        vector<double> norm_emx(this->nhex, 0.0);
+        vector<double> norm_pax(this->nhex, 0.0);
+        vector<double> norm_fgf(this->nhex, 0.0);
+        for (unsigned int h=0; h<this->nhex; h++) {
+            norm_emx[h] = fmin (fmax (((this->emx[h]) - min) * scale, 0.0), 1.0);
+            norm_pax[h] = fmin (fmax (((this->pax[h]) - min) * scale, 0.0), 1.0);
+            norm_fgf[h] = fmin (fmax (((this->fgf[h]) - min) * scale, 0.0), 1.0);
+        }
+
+        // Step through vectors or iterate through list? The latter should be just fine here.
+        disps[0].resetDisplay (fix, eye, rot);
+
+        // Set offsets for the three maps that we'll plot
+        float hgwidth = this->hg->getXmax()-this->hg->getXmin();
+        array<float,3> offset1 = { -hgwidth-(hgwidth/20), 0.0f, 0.0f };
+        array<float,3> offset2 = { 0.0f, 0.0f, 0.0f };
+        array<float,3> offset3 = { hgwidth+(hgwidth/20), 0.0f, 0.0f };
+
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_emx = morph::Tools::HSVtoRGB (0.0, norm_emx[h.vi], 1.0);
+            disps[0].drawHex (h.position(), offset1, (h.d/2.0f), cl_emx);
+        }
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_pax = morph::Tools::HSVtoRGB (0.33, norm_pax[h.vi], 1.0);
+            disps[0].drawHex (h.position(), offset2, (h.d/2.0f), cl_pax);
+        }
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_fgf = morph::Tools::HSVtoRGB (0.66, norm_fgf[h.vi], 1.0);
+            disps[0].drawHex (h.position(), offset3, (h.d/2.0f), cl_fgf);
+        }
+
+        disps[0].redrawDisplay();
+    }
+
+    /*!
+     * Plot concentrations of chemo-attractor molecules A, B and C.
+     */
+    void plotchemo (vector<morph::Gdisplay>& disps) {
+
+        vector<double> fix(3, 0.0);
+        vector<double> eye(3, 0.0);
+        eye[2] = -0.4;
+        vector<double> rot(3, 0.0);
+
+        double max = -1e7;
+        double min = +1e7;
+        // Determines min and max
+        for (auto h : this->hg->hexen) {
+            if (h.onBoundary() == false) {
+                if (this->rhoA[h.vi]>max) { max = this->rhoA[h.vi]; }
+                if (this->rhoA[h.vi]<min) { min = this->rhoA[h.vi]; }
+
+                if (this->rhoB[h.vi]>max) { max = this->rhoB[h.vi]; }
+                if (this->rhoB[h.vi]<min) { min = this->rhoB[h.vi]; }
+
+                if (this->rhoC[h.vi]>max) { max = this->rhoC[h.vi]; }
+                if (this->rhoC[h.vi]<min) { min = this->rhoC[h.vi]; }
+            }
+        }
+        double scale = 1.0 / (max-min);
+
+        // Determine a colour from min, max and current value
+        vector<double> norm_rhoA(this->nhex, 0.0);
+        vector<double> norm_rhoB(this->nhex, 0.0);
+        vector<double> norm_rhoC(this->nhex, 0.0);
+        for (unsigned int h=0; h<this->nhex; h++) {
+            norm_rhoA[h] = fmin (fmax (((this->rhoA[h]) - min) * scale, 0.0), 1.0);
+            norm_rhoB[h] = fmin (fmax (((this->rhoB[h]) - min) * scale, 0.0), 1.0);
+            norm_rhoC[h] = fmin (fmax (((this->rhoC[h]) - min) * scale, 0.0), 1.0);
+        }
+
+        // Set offsets for the three maps that we'll plot
+        float hgwidth = this->hg->getXmax()-this->hg->getXmin();
+        array<float,3> offset1 = { -hgwidth-(hgwidth/20), 0.0f, 0.0f };
+        array<float,3> offset2 = { 0.0f, 0.0f, 0.0f };
+        array<float,3> offset3 = { hgwidth+(hgwidth/20), 0.0f, 0.0f };
+
+        // Step through vectors or iterate through list? The latter should be just fine here.
+        disps[1].resetDisplay (fix, eye, rot);
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_rhoA = morph::Tools::HSVtoRGB (0.0, norm_rhoA[h.vi], 1.0);
+            disps[1].drawHex (h.position(), offset1, (h.d/2.0f), cl_rhoA);
+        }
+
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_rhoB = morph::Tools::HSVtoRGB (0.33, norm_rhoB[h.vi], 1.0);
+            disps[1].drawHex (h.position(), offset2, (h.d/2.0f), cl_rhoB);
+        }
+
+        for (auto h : this->hg->hexen) {
+            array<float,3> cl_rhoC = morph::Tools::HSVtoRGB (0.66, norm_rhoC[h.vi], 1.0);
+            disps[1].drawHex (h.position(), offset3, (h.d/2.0f), cl_rhoC);
+        }
+        disps[1].redrawDisplay();
+    }
+
+    //@}
 
     /*!
      * tools for reading and writing to HDF5 files. To be transferred
@@ -1569,7 +1598,40 @@ public:
     }
     //@}
 
-#ifdef TWO_D_GAUSSIAN_NEEDED
+#ifdef GAUSSIAN_CODE_NEEDED
+    /*!
+     * Create a symmetric, 1D Gaussian hill centred at coordinate (x) with
+     * width sigma and height gain. Place result into @a result.
+     */
+    void createGaussian1D (float x, float phi, double gain, double sigma, vector<double>& result) {
+
+        // Once-only parts of the calculation of the Gaussian.
+        double root_2_pi = 2.506628275;
+        double one_over_sigma_root_2_pi = 1 / sigma * root_2_pi;
+        double two_sigma_sq = 2 * sigma * sigma;
+
+        // Gaussian dist. result, and a running sum of the results:
+        double gauss = 0.0;
+
+        double cosphi = (double) cos (phi);
+        double sinphi = (double) sin (phi);
+
+        // x and y components of the vector from (x,y) to any given Hex.
+        float rx = 0.0f, ry = 0.0f;
+
+        // Calculate each element of the kernel:
+        for (auto h : this->hg->hexen) {
+            rx = x - h.x;
+            ry = 0 - h.y;
+            double x_ = (rx * cosphi) + (ry * sinphi);
+            gauss = gain * (one_over_sigma_root_2_pi
+                            * exp ( static_cast<double>(-(x_*x_))
+                                    / two_sigma_sq ));
+            result[h.vi] = gauss;
+            ++k;
+        }
+    }
+
     /*!
      * Create a symmetric, 2D Gaussian hill centred at coordinate (x,y) with
      * width sigma and height gain. Place result into @a result.

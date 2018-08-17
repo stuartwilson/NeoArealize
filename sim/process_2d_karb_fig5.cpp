@@ -6,6 +6,7 @@
 #include "rd_2d_karb.h"
 
 #include "morph/display.h"
+#include "morph/tools.h"
 #include <iostream>
 #include <vector>
 #include <string>
@@ -53,8 +54,17 @@ int main (void)
     displays.back().resetDisplay (fix, eye, rot);
     displays.back().redrawDisplay();
 
+    // Save PNGs and turn them into movies?
+    bool makeMovies = true;
+
+    // How many frames to simulate before finishing.
+    unsigned int endFrame = 1000;
+
     // Instantiate the model object
     RD_2D_Karb M;
+    // Set the log path (also creates that directory if required)
+    M.setLogpath ("logs/" + worldName);
+    // Initialise variables and do any pre-computation
     try {
         M.init (displays);
     } catch (const exception& e) {
@@ -62,33 +72,48 @@ int main (void)
     }
 
     // Start the loop
-    bool doing = true;
-    while (doing) {
+    bool finished = false;
+    while (!finished) {
         // Step the model
         try {
             M.step();
         } catch (const exception& e) {
             cerr << "Caught exception calling M.step(): " << e.what() << endl;
-            doing = false;
+            finished = true;
         }
 
         displays[0].resetDisplay (fix, eye, rot);
         try {
-            M.plot (displays);
+            M.plot (displays, makeMovies);
             // Save some frames ('c' variable only for now)
             // FIXME: Think about this.
-            if (M.stepCount % 100 == 0) {
-                M.saveC();
-            }
-
-            if (M.stepCount > 6000) {
-                doing = false;
-            }
+            //if (M.stepCount % 100 == 0) {
+            //    M.saveC();
+            //}
 
         } catch (const exception& e) {
             cerr << "Caught exception calling M.plot(): " << e.what() << endl;
-            doing = false;
+            finished = true;
         }
+
+        if (M.stepCount > endFrame) {
+            cout << "Press any key (then return) to make the movies." << endl;
+            int a;
+            cin >> a;
+            finished = true;
+        }
+    }
+
+    // Last job is to make movies and erase pngs
+    if (makeMovies == true) {
+        string cmd = "ffmpeg -i " + M.logpath + "/c_%05d.png -c:v libx264 -pix_fmt yuv420p " + M.logpath + "/c.mp4";
+        system (cmd.c_str());
+        cmd = "ffmpeg -i " + M.logpath + "/a_%05d.png -c:v libx264 -pix_fmt yuv420p " + M.logpath + "/a.mp4";
+        system (cmd.c_str());
+        cmd = "ffmpeg -i " + M.logpath + "/cntr_%05d.png -c:v libx264 -pix_fmt yuv420p " + M.logpath + "/cntr.mp4";
+        system (cmd.c_str());
+        cmd = "rm " + M.logpath + "/[ac]_*.png " + M.logpath + "/cntr_*.png";
+        system (cmd.c_str());
     }
 
     return 0;

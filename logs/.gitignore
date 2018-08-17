@@ -2,3 +2,7 @@ log*.txt
 w*
 c_*
 factorexpression.h5
+*.png
+*.avi
+*.mpg
+*.mp4
