@@ -1,6 +1,6 @@
 /*
- * Reproduce approximate behaviour of Fig 5 of the Karbowski 2004
- * paper in our 2D system of arbitrary boundary shape. Emx turned off.
+ * Reproduce approximate behaviour of Fig 8 of the Karbowski 2004
+ * paper in our 2D system of arbitrary boundary shape. 2 Fgf8 sources.
  */
 
 #include "rd_2d_karb.h"
@@ -19,7 +19,7 @@ int main (void)
     int rseed = 1;
     srand(rseed);
 
-    string worldName("2dkarb_f5_emx2_off");
+    string worldName("2dkarb_f8_dualfgf8");
 
     // Create some displays
     vector<morph::Gdisplay> displays;
@@ -64,8 +64,7 @@ int main (void)
     // Instantiate the model object
     RD_2D_Karb M;
 
-    // Turn emx2 off like this:
-    M.Aemx = 0;
+    M.useSecondFgfSource = true;
 
     // Set the log path (also creates that directory if required)
     M.setLogpath ("logs/" + worldName);
