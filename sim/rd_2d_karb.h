@@ -512,6 +512,10 @@ public:
 #endif
             this->plotchemo (displays);
 
+            // Save pngs of the factors and guidance expressions.
+            displays[0].saveImage (this->logpath + "/factors.png");
+            displays[1].saveImage (this->logpath + "/guidance.png");
+
             // Compute gradients of guidance molecule concentrations once only
             this->spacegrad2D (this->rhoA, this->grad_rhoA);
             this->spacegrad2D (this->rhoB, this->grad_rhoB);
@@ -1169,10 +1173,6 @@ public:
 
         this->plot_contour (this->c, disps[4], 0.75);
 
-        // To enable examination, keep replotting these:
-        this->plotchemo (disps);
-        this->plotexpression (disps);
-
         if (savePngs) {
             // a
             stringstream ff1;
@@ -1237,11 +1237,14 @@ public:
         double maxa = -1e7;
         double mina = +1e7;
         // Determines min and max
-        for (auto h : this->hg->hexen) {
-            if (h.onBoundary() == false) {
+
+        #pragma omp parallel for
+        for (unsigned int hi=0; hi<this->nhex; ++hi) {
+            Hex* h = this->hg->vhexen[hi];
+            if (h->onBoundary() == false) {
                 for (unsigned int i = 0; i<this->N; ++i) {
-                    if (f[i][h.vi]>maxa) { maxa = f[i][h.vi]; }
-                    if (f[i][h.vi]<mina) { mina = f[i][h.vi]; }
+                    if (f[i][h->vi]>maxa) { maxa = f[i][h->vi]; }
+                    if (f[i][h->vi]<mina) { mina = f[i][h->vi]; }
                 }
             }
         }
@@ -1251,6 +1254,7 @@ public:
         vector<vector<double> > norm_a;
         this->resize_vector_vector (norm_a);
         for (unsigned int i = 0; i<this->N; ++i) {
+            #pragma omp parallel for
             for (unsigned int h=0; h<this->nhex; h++) {
                 norm_a[i][h] = fmin (fmax (((f[i][h]) - mina) * scalea, 0.0), 1.0);
             }
@@ -1265,8 +1269,8 @@ public:
         // Draw
         disp.resetDisplay (fix, eye, rot);
         for (unsigned int i = 0; i<this->N; ++i) {
+            // Note: OpenGL isn't thread-safe, so no omp parallel for here.
             for (auto h : this->hg->hexen) {
-                //array<float,3> cl_a = morph::Tools::getJetColorF (norm_a[i][h.vi]);
                 array<float,3> cl_a = morph::Tools::HSVtoRGB ((float)i/(float)this->N,
                                                               norm_a[i][h.vi], 1.0);
                 disp.drawHex (h.position(), offset, (h.d/2.0f), cl_a);
