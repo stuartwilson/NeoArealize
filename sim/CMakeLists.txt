@@ -17,3 +17,7 @@ target_link_libraries(process_2d_karb_fig6 ${MORPH_LDFLAGS} ${HDF5_C_${LIB_TYPE}
 # Demonstrate Figure 8 (dual fgf8), and save data
 add_executable(process_2d_karb_fig8 process_2d_karb_fig8.cpp)
 target_link_libraries(process_2d_karb_fig8 ${MORPH_LDFLAGS} ${HDF5_C_${LIB_TYPE}_LIBRARY})
+
+# Demonstrate gaussian guidance molecule system
+add_executable(process_2d_karb_gaussguidance process_2d_karb_gaussguidance.cpp)
+target_link_libraries(process_2d_karb_gaussguidance ${MORPH_LDFLAGS} ${HDF5_C_${LIB_TYPE}_LIBRARY})
