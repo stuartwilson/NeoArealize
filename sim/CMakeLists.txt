@@ -29,3 +29,7 @@ target_link_libraries(template ${MORPH_LDFLAGS})
 # Orientation preference test program
 add_executable(orient orient.cpp)
 target_link_libraries(orient ${MORPH_LDFLAGS})
+
+# Ermentrout (2009) model
+add_executable(ermentrout ermentrout.cpp)
+target_link_libraries(ermentrout ${MORPH_LDFLAGS} ${HDF5_C_${LIB_TYPE}_LIBRARY})
