@@ -9,8 +9,8 @@ using namespace std;
 
 int main (int argc, char **argv){
 
-    if (argc < 2) {
-        cerr << "\nUsage: ./build/sim/process w0\n\n";
+    if (argc < 3) {
+        cerr << "\nUsage: " << argv[0] << " w0 Dn\n\n";
         cerr << "Be sure to run from the base source directory.\n";
         return -1;
     }
@@ -40,7 +40,7 @@ int main (int argc, char **argv){
         cerr << "Exception initialising RD_2D_Karb object: " << e.what() << endl;
     }
 
-    M.Dn = stod(argv[3]);
+    M.Dn = stod(argv[2]);
     M.chi = M.Dn;
     M.Dc = 0.3*M.Dn;
 
@@ -55,12 +55,15 @@ int main (int argc, char **argv){
             doing = false;
         }
 
-        displays[0].resetDisplay (fix, eye, rot);
-        try {
-            M.plot (displays);
-        } catch (const exception& e) {
-            cerr << "Caught exception calling M.plot(): " << e.what() << endl;
-            doing = false;
+        // Plot every 100 steps
+        if (M.stepCount % 100 == 0) {
+            displays[0].resetDisplay (fix, eye, rot);
+            try {
+                M.plot (displays);
+            } catch (const exception& e) {
+                cerr << "Caught exception calling M.plot(): " << e.what() << endl;
+                doing = false;
+            }
         }
     }
 
