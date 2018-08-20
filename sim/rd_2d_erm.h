@@ -36,7 +36,7 @@ using morph::ReadCurves;
 class RD_2D_Erm
 {
 public:
-    
+
     /*!
      * Constants
      */
@@ -46,12 +46,12 @@ public:
     //! Square root of 3
     const double ROOT3 = 1.73205080756888;
     //@}
-    
+
     /*!
      * The logpath for this model. Used when saving data out.
      */
     string logpath = "logs";
-    
+
     /*!
      * Setter which attempts to ensure the path exists.
      */
@@ -60,44 +60,44 @@ public:
         // Ensure log directory exists
         morph::Tools::createDir (this->logpath);
     }
-    
+
     unsigned int frameN = 0;
-    
+
     /*!
      * Holds the number of hexes in the populated HexGrid
      */
     unsigned int nhex = 0;
-    
+
     /*!
      * Set N>1 for maintaing multiple expression gradients
      */
     unsigned int N = 1;
-    
+
     /*!
      * The c_i(x,t) variables from the Ermentrout paper (chemoattractant concentration)
      */
     vector<vector<double> > c;
-    
+
     /*!
      * The n_i(x,t) variables from the Ermentrout paper (density of tc axons)
      */
     vector<vector<double> > n;
-    
+
     /*!
      * Holds the Laplacian
      */
     vector<vector<double> > lapl;
-    
+
     /*!
      * Holds the Poisson terms (final non-linear term in Ermentrout equation 1)
      */
     vector<vector<double> > poiss;
-    
+
     /*!
      * Our choice of dt.
      */
     double dt = 0.0001;
-    
+
     /*!
      * Compute half and sixth dt in constructor.
      */
@@ -105,19 +105,19 @@ public:
     double halfdt = 0.0;
     double sixthdt = 0.0;
     //@}
-    
+
     /*!
      * The HexGrid "background" for the Reaction Diffusion system.
      */
     HexGrid* hg;
-    
+
     /*!
      * Hex to hex distance. Populate this from hg.d after hg has been
      * initialised.
      */
     double d = 1.0;
-    
-    
+
+
     /*!
      * Parameters of the Ermentrout model
      */
@@ -128,14 +128,14 @@ public:
     double b;
     double mu;
     double chi;
-    
+
     /*!
      * Track the number of computational steps that we've carried
      * out. Only to show a message saying "100 steps done...", but
      * that's reason enough.
      */
     unsigned int stepCount = 0;
-    
+
     /*!
      * Simple constructor; no arguments.
      */
@@ -143,14 +143,14 @@ public:
         this->halfdt = this->dt/2.0;
         this->sixthdt = this->dt/6.0;
     }
-    
+
     /*!
      * Destructor required to free up HexGrid memory
      */
     ~RD_2D_Erm (void) {
         delete (this->hg);
     }
-    
+
     /*!
      * A utility function to resize the vector-vectors that hold a
      * variable for the N different thalamo-cortical axon types.
@@ -161,22 +161,22 @@ public:
             vv[i].resize (this->nhex, 0.0);
         }
     }
-    
+
     /*!
      * Resize a variable that'll be nhex elements long
      */
     void resize_vector_variable (vector<double>& v) {
         v.resize (this->nhex, 0.0);
     }
-    
+
     /*!
      * Resize a parameter that'll be N elements long
      */
     void resize_vector_param (vector<double>& p) {
         p.resize (this->N, 0.0);
     }
-    
-    
+
+
     /*!
      * Initialise this vector of vectors with noise.
      */
@@ -187,13 +187,13 @@ public:
             }
         }
     }
-    
+
     /*!
      * Initialise HexGrid, variables and parameters. Carry out
      * one-time computations of the model.
      */
     void init (vector<morph::Gdisplay>& displays, bool useSavedGenetics = false) {
-        
+
         DBG ("called");
         // Create a HexGrid
         this->hg = new HexGrid (0.01, 3);
@@ -207,15 +207,15 @@ public:
         this->nhex = this->hg->num();
         // Spatial d comes from the HexGrid, too.
         this->d = this->hg->getd();
-        
+
         // Resize and zero-initialise the various containers
         this->resize_vector_vector (this->c);
         this->resize_vector_vector (this->n);
         this->resize_vector_vector (this->lapl);
         this->resize_vector_vector (this->poiss);
-        
+
         // Populate parameters
-        
+
         this->Dn = 0.3;                 // Diffusion constant for n
         this->Dc = Dn*0.3;              // Diffusion constant for c
         this->beta = 5.;                // saturation term in function for production of c
@@ -223,12 +223,12 @@ public:
         this->b = 1.;                   // pruning constant
         this->mu = 1.;                  // decay of chemoattractant constant
         this->chi = Dn;                 // degree of attraction of chemoattractant
-        
+
         // Initialise a with noise
         this->noiseify_vector_vector (this->n, 1., 0.01);
         this->noiseify_vector_vector (this->c, beta*0.5, 0.01);
     }
-    
+
     /*!
      * Examine the value in each Hex of the hexgrid of the scalar
      * field f. If abs(f[h]) exceeds the size of dangerThresh, then
@@ -245,29 +245,29 @@ public:
             }
         }
     }
-    
-    
+
+
     void step (void) {
-        
+
         this->stepCount++;
-        
+
         if (this->stepCount % 100 == 0) {
             DBG ("System computed " << this->stepCount << " times so far...");
         }
-        
+
+        #pragma omp parallel for
         for (unsigned int i=0; i<this->N; ++i) {
-#pragma omp parallel for
-            
+
             this->compute_poiss (n[i],c[i],i);  // compute the non-linear Poission term in Eq1
             this->compute_lapl (n[i], i);       // populate lapl[i] with laplacian of n
-            
+
             // integrate n
             for (unsigned int h=0; h<this->nhex; ++h) {
                 n[i][h] += (a - b*n[i][h] + Dn*lapl[i][h] - chi*poiss[i][h])*dt;
             }
-            
+
             this->compute_lapl (c[i], i);       // populate lapl[i] with laplacian of c
-            
+
             // integrate c
             double n2;
             for (unsigned int h=0; h<this->nhex; ++h) {
@@ -275,17 +275,17 @@ public:
                 c[i][h] += (beta*n2/(1.+n2) - mu*c[i][h] +Dc*lapl[i][h])*dt;
             }
         }
-        
+
     }
-    
-    
+
+
     /*!
      * Plot the system on @a disps
      */
     void plot (vector<morph::Gdisplay>& disps) {
         this->plot_f (this->n, disps[0], true);
         this->plot_f (this->c, disps[1], true);
-        
+
         /*
         std::stringstream frameFile1;
         frameFile1<<"logs/tmp/demo";
@@ -295,7 +295,7 @@ public:
         frameN++;
          */
     }
-    
+
     /*!
      * Plot a or c
      */
@@ -303,7 +303,7 @@ public:
         vector<double> fix(3, 0.0);
         vector<double> eye(3, 0.0);
         vector<double> rot(3, 0.0);
-        
+
         vector<double> maxa (this->N, -1e7);
         vector<double> mina (this->N, +1e7);
         // Copies data to plot out of the model
@@ -336,7 +336,7 @@ public:
         for (unsigned int i = 0; i<this->N; ++i) {
             scalea[i] = 1.0 / (maxa[i]-mina[i]);
         }
-        
+
         // Determine a colour from min, max and current value
         vector<vector<double> > norm_a;
         this->resize_vector_vector (norm_a);
@@ -345,12 +345,12 @@ public:
                 norm_a[i][h] = fmin (fmax (((f[i][h]) - mina[i]) * scalea[i], 0.0), 1.0);
             }
         }
-        
+
         // Create an offset which we'll increment by the width of the
         // map, starting from the left-most map (f[0])
         float hgwidth = this->hg->getXmax()-this->hg->getXmin();
         array<float,3> offset = {{0.0f,0.0f,0.0f}};//{ 2*(-hgwidth-(hgwidth/20)), 0.0f, 0.0f };
-        
+
         // Draw
         disp.resetDisplay (fix, eye, rot);
         for (unsigned int i = 0; i<this->N; ++i) {
@@ -362,21 +362,21 @@ public:
         }
         disp.redrawDisplay();
     }
-    
+
     /*!
      * Computes the Laplacian
      * Stable with dt = 0.0001;
      */
     void compute_lapl (vector<double>& fa, unsigned int i) {
-        
+
         double norm  = (2) / (3 * this->d * this->d); // SW: double-check the factor 2 here?
-        
+
 #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
-            
+
             Hex* h = this->hg->vhexen[hi];
             // 1. The D Del^2 term
-            
+
             // Compute the sum around the neighbours
             double thesum = -6 * fa[h->vi];
             if (h->has_ne) {
@@ -409,32 +409,29 @@ public:
             } else {
                 thesum += fa[h->vi];
             }
-            
+
             this->lapl[i][h->vi] = norm * thesum;
         }
     }
-    
-    
-    //}; // RD_2D_Karb
-    
+
     /*!
      * Computes the Poisson term
      *
      * Stable with dt = 0.0001;
      */
     void compute_poiss (vector<double>& fa1, vector<double>& fa2, unsigned int i) {
-        
+
         // Compute non-linear term
-        
+
 #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
-            
+
             Hex* h = this->hg->vhexen[hi];
-            
+
             vector<double> dum1(6,fa1[h->vi]);
             vector<double> dum2(6,fa2[h->vi]);
-            
-            
+
+
             if (h->has_ne) {
                 dum1[0] = fa1[h->ne->vi];
                 dum2[0] = fa2[h->ne->vi];
@@ -459,17 +456,17 @@ public:
                 dum1[5] = fa1[h->nse->vi];
                 dum2[5] = fa2[h->nse->vi];
             }
-            
+
             double val =    (dum1[0]+dum1[1])*(dum2[0]-fa2[h->vi])+
             (dum1[1]+dum1[2])*(dum2[1]-fa2[h->vi])+
             (dum1[2]+dum1[3])*(dum2[2]-fa2[h->vi])+
             (dum1[3]+dum1[4])*(dum2[3]-fa2[h->vi])+
             (dum1[4]+dum1[5])*(dum2[4]-fa2[h->vi])+
             (dum1[5]+dum1[0])*(dum2[5]-fa2[h->vi]);
-            
+
             this->poiss[i][h->vi] = val / (ROOT3 * this->d * this->d);
         }
-        
+
     }
-    
+
 }; // RD_2D_Erm
