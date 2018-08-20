@@ -21,3 +21,11 @@ target_link_libraries(process_2d_karb_fig8 ${MORPH_LDFLAGS} ${HDF5_C_${LIB_TYPE}
 # Demonstrate gaussian guidance molecule system
 add_executable(process_2d_karb_gaussguidance process_2d_karb_gaussguidance.cpp)
 target_link_libraries(process_2d_karb_gaussguidance ${MORPH_LDFLAGS} ${HDF5_C_${LIB_TYPE}_LIBRARY})
+
+# A template RD system. Not intended to be run really.
+add_executable(template template.cpp)
+target_link_libraries(template ${MORPH_LDFLAGS})
+
+# Orientation preference test program
+add_executable(orient orient.cpp)
+target_link_libraries(orient ${MORPH_LDFLAGS})
