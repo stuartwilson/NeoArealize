@@ -36,8 +36,9 @@ using morph::HdfData;
  */
 class RD_OrientPref
 {
+// This code implements my policy of keeping most parameters and
+// variables public as this is research code.
 public:
-
     /*!
      * Constants
      */
@@ -46,6 +47,8 @@ public:
     const double R3_OVER_2 = 0.866025403784439;
     //! Square root of 3
     const double ROOT3 = 1.73205080756888;
+    //! 2 pi
+    const double TWO_PI = 2 * M_PI;
     //@}
 
     /*!
@@ -66,24 +69,6 @@ public:
      * Holds the number of hexes in the populated HexGrid
      */
     unsigned int nhex = 0;
-
-    /*!
-     * May not be necessary in this model - number of fields to compute.
-     */
-    unsigned int N = 1;
-
-    /*!
-     * These are the c_i(x,t) variables from the Karb2004 paper. x is
-     * a vector in two-space.
-     */
-    //vector<vector<double> > c;
-
-    /*!
-     * For each TC axon type, this holds the two components of the
-     * gradient field of the scalar value a(x,t) (where this x is a
-     * vector in two-space)
-     */
-    //vector<array<vector<double>, 2> > grad_a;
 
     /*!
      * Our choice of dt.
@@ -128,6 +113,91 @@ public:
     unsigned int frameN = 0;
 
     /*!
+     * Model variables
+     */
+    //@{
+
+    /*!
+     * The z variable - a vector field which represents orientation
+     * selectivity of neurons. The magnitude of this field represents
+     * the selectivity of the neuron, its direction represents the
+     * orientation of edges for which it selects.
+     */
+    array<vector<double>, 2> z;
+    /*!
+     * z input pattern
+     */
+    array<vector<double>, 2> sz;
+
+    /*!
+     * Afferent input; scalar field.
+     */
+    vector<double> aff;
+
+    /*!
+     * Receptive field centre coordinates for neurons.
+     */
+    array<vector<double>, 2> r;
+    /*!
+     * r input pattern
+     */
+    array<vector<double>, 2> sr;
+
+
+    /*!
+     * Fields used during Runge-Kutta integration (see step_integrate)
+     */
+    array<vector<double>, 2> q;
+    array<vector<double>, 2> k1;
+    array<vector<double>, 2> k2;
+    array<vector<double>, 2> k3;
+    array<vector<double>, 2> k4;
+    array<vector<double>, 2> lap;
+    array<vector<double>, 2> argu_r;
+    array<vector<double>, 2> argu_z;
+    array<vector<double>, 2> diff_r;
+    array<vector<double>, 2> diff_z;
+    //@} // model variables
+
+    /*!
+     * Model parameters
+     */
+    //@{
+
+    /*!
+     * Threshold (<1) for identifying pinwheels
+     */
+    double thresh = 0.8;
+
+    /*!
+     * Strength of lateral interactions
+     */
+    double eta = 0.06;
+
+private:
+    /*!
+     * afferent activation selectivity
+     */
+    double sigma = 0.5;
+
+    /*!
+     * Used many times in code.
+     */
+    double oneOverTwoSigmaSquared = 1.0 / (2.0 * sigma * sigma);
+
+public:
+    /*!
+     * Need a setter for sigma, as oneOverTwoSigmaSquared has to be
+     * recomputed when sigma is changed.
+     */
+    void setSigma (double val) {
+        this->sigma = val;
+        this->oneOverTwoSigmaSquared = 1.0 / (2.0 * sigma * sigma);
+    }
+
+    //@} // model parameters
+
+    /*!
      * Simple constructor; no arguments.
      */
     RD_OrientPref (void) {
@@ -143,82 +213,122 @@ public:
     }
 
     /*!
-     * A utility function to resize the vector-vectors that hold a
-     * variable for the N different thalamo-cortical axon types.
+     * Resize array (of length 2) of vectors to each be of nhex
+     * length.
      */
-    void resize_vector_vector (vector<vector<double> >& vv) {
-        vv.resize (this->N);
-        for (unsigned int i=0; i<this->N; ++i) {
-            vv[i].resize (this->nhex, 0.0);
-        }
+    void resize_vector_field (array<vector<double>, 2>& av) {
+        av[0].resize (this->nhex, 0.0);
+        av[1].resize (this->nhex, 0.0);
     }
 
-    /*!
-     * Resize a variable that'll be nhex elements long
-     */
-    void resize_vector_variable (vector<double>& v) {
-        v.resize (this->nhex, 0.0);
-    }
-
-    /*!
-     * Resize a parameter that'll be N elements long
-     */
-    void resize_vector_param (vector<double>& p) {
-        p.resize (this->N, 0.0);
-    }
-
-    /*!
-     * Resize a gradient field
-     */
-    void resize_gradient_field (array<vector<double>, 2>& g) {
-        g[0].resize (this->nhex, 0.0);
-        g[1].resize (this->nhex, 0.0);
-    }
-
-    /*!
-     * Resize a vector (over TC types i) of an array of two
-     * vector<double>s which are the x and y components of a
-     * (mathematical) vector field.
-     */
-    void resize_vector_array_vector (vector<array<vector<double>, 2> >& vav) {
-        vav.resize (this->N);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            this->resize_gradient_field (vav[i]);
-        }
+    void resize_scalar_field (vector<double>& vd) {
+        vd.resize (this->nhex, 0.0);
     }
 
     /*!
      * Initialise this vector of vectors with noise. This is a
      * model-specific function.
      *
-     * I apply a sigmoid to the boundary hexes, so that the noise
-     * drops away towards the edge of the domain.
+     * Optionally apply a sigmoid to the boundary hexes, so that the
+     * noise drops away towards the edge of the domain.
+     *
+     * @param av Fixed size array of two vector<doubles> - this is the
+     * input vector field.
+     *
+     * @param randNoiseOffset After randNoiseGain has been applied to
+     * the uniformly sampled random number, apply this additive offset.
+     *
+     * @param randNoiseGain The uniform random number in range [0 1]
+     * is multiplied by this value.
+     *
+     * @param useSigmoidFalloff If true, attenuate noise as boundary is approached
+     *
+     * @param sigmoidSharpness If useSigmoidFalloff is true, this is
+     * the sharpness of the sigmoid fall-off.
+     *
+     * @param sigmoidOffset If useSigmoidFalloff is true, this is the
+     * length scale over which the fall-off occurs.
      */
-    void noiseify_vector_vector (vector<vector<double> >& vv) {
-        double randNoiseOffset = 0.8;
-        double randNoiseGain = 0.1;
-        for (unsigned int i = 0; i<this->N; ++i) {
-            for (auto h : this->hg->hexen) {
-                // boundarySigmoid. Jumps sharply (100, larger is
-                // sharper) over length scale 0.05 to 1. So if
-                // distance from boundary > 0.05, noise has normal
-                // value. Close to boundary, noise is less.
-                vv[i][h.vi] = morph::Tools::randDouble() * randNoiseGain + randNoiseOffset;
-                if (h.distToBoundary > -0.5) { // It's possible that distToBoundary is set to -1.0
-                    double bSig = 1.0 / ( 1.0 + exp (-100.0*(h.distToBoundary-0.02)) );
-                    vv[i][h.vi] = vv[i][h.vi] * bSig;
+    void noiseify_vector_field (array<vector<double>, 2>& av,
+                                double randNoiseOffset, double randNoiseGain,
+                                bool useSigmoidFalloff,
+                                double sigmoidSharpness /* 100.0 */, double sigmoidOffset /*0.02*/) {
+        for (unsigned int i = 0; i<2; ++i) {
+            #pragma omp parallel for
+            for (unsigned int hi=0; hi<this->nhex; ++hi) {
+                Hex* h = this->hg->vhexen[hi];
+                av[i][h->vi] = morph::Tools::randDouble() * randNoiseGain + randNoiseOffset;
+                if (useSigmoidFalloff == true) {
+                    // boundarySigmoid. Jumps sharply (100, larger is
+                    // sharper) over length scale 0.05 to 1. So if
+                    // distance from boundary is greater than about
+                    // 2*sigmoidOffset, noise has normal value. Close
+                    // to boundary, noise is less.
+                    if (h->distToBoundary > -0.5) { // It's possible that distToBoundary was initialised to -1.0
+                        double bSig = 1.0 / ( 1.0 + exp (-sigmoidSharpness*(h->distToBoundary-sigmoidOffset)) );
+                        av[i][h->vi] = av[i][h->vi] * bSig;
+                    }
                 }
             }
         }
     }
 
     /*!
-     * Initialise HexGrid, variables and parameters. Carry out
-     * one-time computations of the model.
+     * Reproduce python code:
+     *
+     * z = np.exp(2.j*np.random.rand(N,N)*np.pi)
+     *
+     * Optionally with sigmoid style fall-off as the boundary is
+     * approached.
+     *
+     * @param av Fixed size array of two vector<doubles> - this is the
+     * input vector field.
+     *
+     * @param mult A multiplier to apply to the uniformly sampled
+     * random number. This is 2pi for the original example, but can be
+     * changed with this argument.
+     *
+     * @param useSigmoidFalloff If true, attenuate noise as boundary is approached
+     *
+     * @param sigmoidSharpness If useSigmoidFalloff is true, this is
+     * the sharpness of the sigmoid fall-off.
+     *
+     * @param sigmoidOffset If useSigmoidFalloff is true, this is the
+     * length scale over which the fall-off occurs.
+     */
+    void noiseify_z_field (array<vector<double>, 2>& av, double mult,
+                           bool useSigmoidFalloff,
+                           double sigmoidSharpness /* 100.0 */, double sigmoidOffset /*0.02*/) {
+        double rn = 0;
+        #pragma omp parallel for
+        for (unsigned int hi=0; hi<this->nhex; ++hi) {
+            Hex* h = this->hg->vhexen[hi];
+
+            rn = morph::Tools::randDouble();
+            av[0][h->vi] = cos (rn*mult);
+            av[1][h->vi] = sin (rn*mult);
+
+            if (useSigmoidFalloff == true) {
+                // boundarySigmoid. Jumps sharply (100, larger is
+                // sharper) over length scale 0.05 to 1. So if
+                // distance from boundary is greater than about
+                // 2*sigmoidOffset, noise has normal value. Close
+                // to boundary, noise is less.
+                if (h->distToBoundary > -0.5) { // It's possible that distToBoundary was initialised to -1.0
+                    double bSig = 1.0 / ( 1.0 + exp (-sigmoidSharpness*(h->distToBoundary-sigmoidOffset)) );
+                    av[0][h->vi] = av[0][h->vi] * bSig;
+                    av[1][h->vi] = av[1][h->vi] * bSig;
+                }
+            }
+        }
+    }
+
+    /*!
+     * Initialise HexGrid, variables and parameters. Carry out any
+     * one-time computations required by the model.
      */
     void init (vector<morph::Gdisplay>& displays, bool useSavedGenetics = false) {
 
-        DBG ("called");
         // Create a HexGrid
         this->hg = new HexGrid (0.01, 3);
         // Read the curves which make a boundary
@@ -238,21 +348,31 @@ public:
         }
 
         // Resize and zero-initialise the various containers
-        //this->resize_vector_vector (this->c);
+        this->resize_vector_field (this->z);
+        this->resize_vector_field (this->sz);
+        this->resize_vector_field (this->r);
+        this->resize_vector_field (this->sr);
 
-        //this->resize_vector_variable (this->n);
+        this->resize_vector_field (this->q);
+        this->resize_vector_field (this->k1);
+        this->resize_vector_field (this->k2);
+        this->resize_vector_field (this->k3);
+        this->resize_vector_field (this->k4);
+        this->resize_vector_field (this->lap);
+        this->resize_vector_field (this->argu_r);
+        this->resize_vector_field (this->argu_z);
+        this->resize_vector_field (this->diff_r);
+        this->resize_vector_field (this->diff_z);
 
-        //this->resize_vector_param (this->alpha);
+        this->resize_scalar_field (this->aff);
 
-        //this->resize_gradient_field (this->grad_rhoA);
+        // Initialise z with noise
+        this->noiseify_z_field (this->z, TWO_PI, false, 100.0, 0.02);
 
-        // Resize grad_a and other vector-array-vectors
-        //this->resize_vector_array_vector (this->grad_a);
-
-        // Initialise a with noise
-        //this->noiseify_vector_vector (this->a);
-
-        // Now initialise the model's variables and parameters.
+        // Initialise r with noise
+        this->noiseify_vector_field (this->r,
+                                     -0.005, 0.01,
+                                     false, 100.0, 0.02);
     }
 
     /*!
@@ -269,13 +389,13 @@ public:
     /*!
      * Save some data like this.
      */
-    void saveStuff (void) {
-        string fname = this->logpath + "/factorexpression.h5";
+    void saveState (void) {
+        string fname = this->logpath + "/pinwheel.h5";
         cout << "Saving to file " << fname << endl;
         HdfData data (fname);
         // Save some variables
-        //data.add_double ("/Aemx", this->Aemx);
-        //data.add_double_vector ("/emx", this->emx);
+        //data.add_array_vector_double_2 ("/z", this->z);
+        //data.add_array_vector_double_2 ("/r", this->z);
         this->saveHexPositions (data);
     }
     //@} // HDF5
@@ -296,58 +416,105 @@ public:
             DBG ("System computed " << this->stepCount << " times so far...");
         }
 
-        // 1. Do some computes
+        // Generate input patter
+        this->noiseify_z_field (this->sz, 2.0, false, 100.0, 0.02);
+        this->noiseify_vector_field (this->sr,
+                                     -0.5, 1.0,
+                                     false, 100.0, 0.02);
+
+        // Compute afferent response
         #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
-            Hex* h = this->hg->vhexen[hi];
-        }
-
-        // 2. Do integration of some variable.
+            //Hex* h = this->hg->vhexen[hi];
+            this->diff_r[0][hi] = this->sr[0][hi] - this->r[0][hi];
+            this->diff_r[1][hi] = this->sr[1][hi] - this->r[1][hi];
+            this->diff_z[0][hi] = this->sz[0][hi] - this->z[0][hi];
+            this->diff_z[1][hi] = this->sz[1][hi] - this->z[1][hi];
 #if 0
-        // Runge-Kutta integration:
-        #pragma omp parallel for
-        for (unsigned int i=0; i<this->N; ++i) {
-
-            DBG2 ("(a) alpha_c_beta_na["<<i<<"][0] = " << this->alpha_c_beta_na[i][0]);
-
-            // Runge-Kutta integration for A
-            vector<double> q(this->nhex, 0.0);
-            this->compute_divJ (a[i], i); // populates divJ[i]
-            DBG2 ("Computing divJ, divJ[0][0]: " << divJ[0][0]);
-            vector<double> k1(this->nhex, 0.0);
-            for (unsigned int h=0; h<this->nhex; ++h) {
-                k1[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
-                q[h] = this->a[i][h] + k1[h] * halfdt;
-            }
-            DBG2 ("(a) After RK stage 1, q[0]: " << q[0]);
-
-            vector<double> k2(this->nhex, 0.0);
-            this->compute_divJ (q, i);
-            for (unsigned int h=0; h<this->nhex; ++h) {
-                k2[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
-                q[h] = this->a[i][h] + k2[h] * halfdt; // Kaboom!
-            }
-            DBG2 ("(a) After RK stage 2, q[0]:" << q[0] << " from a["<<i<<"][0]:" << a[i][0] << " divj["<<i<<"][0]:" << divJ[i][0] << " k2[0]:" << k2[0]);
-
-            vector<double> k3(this->nhex, 0.0);
-            this->compute_divJ (q, i);
-            for (unsigned int h=0; h<this->nhex; ++h) {
-                k3[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
-                q[h] = this->a[i][h] + k3[h] * dt;
-            }
-            DBG2 ("(a) After RK stage 3, q[0]: " << q[0]);
-
-            vector<double> k4(this->nhex, 0.0);
-            this->compute_divJ (q, i);
-            for (unsigned int h=0; h<this->nhex; ++h) {
-                k4[h] = this->divJ[i][h] + this->alpha_c_beta_na[i][h];
-                a[i][h] += (k1[h] + 2.0 * (k2[h] + k3[h]) + k4[h]) * sixthdt;
-            }
-            DBG2 ("(a) After RK stage 4, a[" << i << "][0]: " << a[i][0]);
-
-            DBG2("(a) Debug a["<<i<<"]");
-        }
+            // magnitudes of rdiff and zdiff
+            double rdmag = sqrt (diff_r[0][hi]*diff_r[0][hi] + diff_r[1][hi]*diff_r[1][hi]);
+            double zdmag = sqrt (diff_z[0][hi]*diff_z[0][hi] + diff_z[1][hi]*diff_z[1][hi]);
+            // squared magnitudes of rdiff and zdiff:
+            double rdmagsq = rdmag * rdmag;
+            double zdmagsq = zdmag * zdmag;
 #endif
+#if 0
+            double rdmagsq = diff_r[0][hi]*diff_r[0][hi] + diff_r[1][hi]*diff_r[1][hi];
+            double zdmagsq = diff_z[0][hi]*diff_z[0][hi] + diff_z[1][hi]*diff_z[1][hi];
+            this->aff[hi] = exp (this->oneOverTwoSigmaSquared * (-rdmagsq - zdmagsq));
+#endif
+            // Minimal computation version:
+            double exparg = - diff_r[0][hi]*diff_r[0][hi] - diff_r[1][hi]*diff_r[1][hi] - diff_z[0][hi]*diff_z[0][hi] - diff_z[1][hi]*diff_z[1][hi];
+            this->aff[hi] = exp (this->oneOverTwoSigmaSquared * exparg);
+        }
+        // Serial sum:
+        double affsum = 0;
+        // Vector sum candidate!
+        for (unsigned int hi=0; hi<this->nhex; ++hi) {
+            affsum += this->aff[hi];
+        }
+        // Parallel division-by
+        #pragma omp parallel for
+        for (unsigned int hi=0; hi<this->nhex; ++hi) {
+            this->aff[hi] /= affsum;
+            // Prepare args for step_integrate. Vector multiplication candidate!
+            this->argu_z[0][hi] = this->aff[hi] * diff_z[0][hi];
+            this->argu_z[1][hi] = this->aff[hi] * diff_z[1][hi];
+            this->argu_r[0][hi] = this->aff[hi] * diff_r[0][hi];
+            this->argu_r[1][hi] = this->aff[hi] * diff_r[1][hi];
+        }
+
+        this->step_integrate (this->argu_z, this->z);
+        this->step_integrate (this->argu_r, this->r);
+    }
+
+    void step_integrate (array<vector<double>, 2>& E, array<vector<double>, 2>& x, double h = 0.05) {
+
+        // Runge-Kutta integration:
+
+        // If necessary:
+        //this->zero_vector_field (q);
+        //this->zero_vector_field (k1);
+
+        double h2 = h * h;
+
+        this->compute_lapl_cmplx (x, lap);
+        #pragma omp parallel for
+        for (unsigned int h=0; h<this->nhex; ++h) {
+            k1[0][h] = h * (E[0][h] + this->eta * lap[0][h]);
+            k1[1][h] = h * (E[1][h] + this->eta * lap[1][h]);
+            q[0][h] = x[0][h] + k1[0][h] * this->halfdt;
+            q[1][h] = x[1][h] + k1[1][h] * this->halfdt;
+        }
+
+        this->compute_lapl_cmplx (q, lap);
+        #pragma omp parallel for
+        for (unsigned int h=0; h<this->nhex; ++h) {
+            k2[0][h] = this->halfdt * h2 * (E[0][h] + this->eta * lap[0][h]);
+            k2[1][h] = this->halfdt * h2 * (E[1][h] + this->eta * lap[1][h]);
+            q[0][h] = x[0][h] + k2[0][h] * this->halfdt;
+            q[1][h] = x[1][h] + k2[1][h] * this->halfdt;
+        }
+
+        this->compute_lapl_cmplx (q, lap);
+        #pragma omp parallel for
+        for (unsigned int h=0; h<this->nhex; ++h) {
+            k3[0][h] = this->halfdt * h2 * (E[0][h] + this->eta * lap[0][h]);
+            k3[1][h] = this->halfdt * h2 * (E[1][h] + this->eta * lap[1][h]);
+            q[0][h] = x[0][h] + k3[0][h];
+            q[1][h] = x[1][h] + k3[1][h];
+        }
+
+        this->compute_lapl_cmplx (q, lap);
+        #pragma omp parallel for
+        for (unsigned int h=0; h<this->nhex; ++h) {
+            k4[0][h] = h2 * (E[0][h] + this->eta * lap[0][h]);
+            k4[1][h] = h2 * (E[1][h] + this->eta * lap[1][h]);
+
+            // Write final result on this loop back into x
+            x[0][h] = x[0][h] + (k1[0][h] + 2.0*(k2[0][h]+k3[0][h]) + k4[0][h]) / 6.0;
+            x[1][h] = x[1][h] + (k1[1][h] + 2.0*(k2[1][h]+k3[1][h]) + k4[1][h]) / 6.0;
+        }
     }
 
     /*!
@@ -383,68 +550,156 @@ public:
             gradf[0][h->vi] = 0.0;
             gradf[1][h->vi] = 0.0;
 
-            DBG2 ("(h->ri,h->gi): (" << h->ri << "," << h->gi << ")");
             // Find x gradient
             if (h->has_ne && h->has_nw) {
-                DBG2 ("x case 1 f[h->ne]: " << f[h->ne->vi] << " - f[h->nw]" << f[h->nw->vi] << "/ h->d*2: " << (double)h->d * 2.0);
                 gradf[0][h->vi] = (f[h->ne->vi] - f[h->nw->vi]) / ((double)h->d * 2.0);
             } else if (h->has_ne) {
-                DBG2 ("x case 2 f[h->ne]: " << f[h->ne->vi] << " - f[h]" << f[h->vi] << "/ h->d: " << (double)h->d);
                 gradf[0][h->vi] = (f[h->ne->vi] - f[h->vi]) / (double)h->d;
             } else if (h->has_nw) {
-                DBG2 ("x case 3 f[h]: " << f[h->vi] << " - f[h->nw]" << f[h->nw->vi] << "/ h->d: " << (double)h->d);
                 gradf[0][h->vi] = (f[h->vi] - f[h->nw->vi]) / (double)h->d;
-            } else {
-                // zero gradient in x direction as no neighbours in
-                // those directions? Or possibly use the average of
-                // the gradient between the nw,ne and sw,se neighbours
-            }
+            } /*
+               * else zero gradient in x direction as no neighbours in
+               * those directions? Or possibly use the average of
+               * the gradient between the nw,ne and sw,se neighbours
+               */
 
             // Find y gradient
             if (h->has_nnw && h->has_nne && h->has_nsw && h->has_nse) {
                 // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
-#ifdef DEBUG2
-                if (h->vi == 0) {
-                    double _d = (double)h->getV();
-                    double _td = (double)h->getTwoV();
-                    DBG2 ("y case 1. getV: " << _d << " getTwoV: " << _td);
-                }
-#endif
                 gradf[1][h->vi] = ((f[h->nne->vi] - f[h->nse->vi]) + (f[h->nnw->vi] - f[h->nsw->vi])) / (double)h->getV();
 
             } else if (h->has_nnw && h->has_nne ) {
-                //if (h->vi == 0) { DBG ("y case 2"); }
                 gradf[1][h->vi] = ( (f[h->nne->vi] + f[h->nnw->vi]) / 2.0 - f[h->vi]) / (double)h->getV();
 
             } else if (h->has_nsw && h->has_nse) {
-                //if (h->vi == 0) { DBG ("y case 3"); }
                 gradf[1][h->vi] = (f[h->vi] - (f[h->nse->vi] + f[h->nsw->vi]) / 2.0) / (double)h->getV();
 
             } else if (h->has_nnw && h->has_nsw) {
-                //if (h->vi == 0) { DBG ("y case 4"); }
                 gradf[1][h->vi] = (f[h->nnw->vi] - f[h->nsw->vi]) / (double)h->getTwoV();
 
             } else if (h->has_nne && h->has_nse) {
-                //if (h->vi == 0) { DBG ("y case 5"); }
                 gradf[1][h->vi] = (f[h->nne->vi] - f[h->nse->vi]) / (double)h->getTwoV();
-            } else {
-                // Leave grady at 0
-            }
-
-            //if (h->vi == 0) {
-            //    DBG ("gradf[0/1][0]: " << gradf[0][0] << "," << gradf[1][0]);
-            //}
+            } // else leave grady at 0
         }
     }
 
     /*!
-     * Computes the "flux of axonal branches" term, J_i(x) (Eq 4)
-     *
-     * Inputs: this->g, fa (which is this->a[i] or a q in the RK
-     * algorithm), this->D, @a i, the TC type.  Helper functions:
-     * spacegrad2D().  Output: this->divJ
-     *
-     * Stable with dt = 0.0001;
+     * Computes the Laplacian (the divergence of the gradient) of the
+     * scalar field fa, placing the result in the scalar field
+     * laplace.
+     */
+    void compute_lapl (vector<double>& fa, vector<double>& laplace) {
+
+        double norm  = (2) / (3 * this->d * this->d); // SW: double-check the factor 2 here?
+
+        #pragma omp parallel for
+        for (unsigned int hi=0; hi<this->nhex; ++hi) {
+
+            Hex* h = this->hg->vhexen[hi];
+
+            // Compute the sum around the neighbours
+            double thesum = -6 * fa[h->vi];
+            if (h->has_ne) {
+                thesum += fa[h->ne->vi];
+            } else {
+                thesum += fa[h->vi]; // A ghost neighbour-east with same value as Hex_0
+            }
+            if (h->has_nne) {
+                thesum += fa[h->nne->vi];
+            } else {
+                thesum += fa[h->vi];
+            }
+            if (h->has_nnw) {
+                thesum += fa[h->nnw->vi];
+            } else {
+                thesum += fa[h->vi];
+            }
+            if (h->has_nw) {
+                thesum += fa[h->nw->vi];
+            } else {
+                thesum += fa[h->vi];
+            }
+            if (h->has_nsw) {
+                thesum += fa[h->nsw->vi];
+            } else {
+                thesum += fa[h->vi];
+            }
+            if (h->has_nse) {
+                thesum += fa[h->nse->vi];
+            } else {
+                thesum += fa[h->vi];
+            }
+
+            laplace[h->vi] = norm * thesum;
+        }
+    }
+
+    /*!
+     * Like compute_lapl, but with the input and output treated as
+     * "scalar fields of complex numbers".
+     */
+    void compute_lapl_cmplx (array<vector<double>, 2>& fa, array<vector<double>, 2>& laplace) {
+
+        double norm  = (2) / (3 * this->d * this->d); // SW: double-check the factor 2 here?
+
+        #pragma omp parallel for
+        for (unsigned int hi=0; hi<this->nhex; ++hi) {
+
+            Hex* h = this->hg->vhexen[hi];
+
+            // Compute the sum around the neighbours
+            double sum_re = -6 * fa[0][h->vi];
+            double sum_im = -6 * fa[1][h->vi];
+            if (h->has_ne) {
+                sum_re += fa[0][h->ne->vi];
+                sum_im += fa[1][h->ne->vi];
+            } else {
+                sum_re += fa[0][h->vi]; // A ghost neighbour-east with same value as Hex_0
+                sum_im += fa[1][h->vi];
+            }
+            if (h->has_nne) {
+                sum_re += fa[0][h->nne->vi];
+                sum_im += fa[1][h->nne->vi];
+            } else {
+                sum_re += fa[0][h->vi];
+                sum_im += fa[1][h->vi];
+            }
+            if (h->has_nnw) {
+                sum_re += fa[0][h->nnw->vi];
+                sum_im += fa[1][h->nnw->vi];
+            } else {
+                sum_re += fa[0][h->vi];
+                sum_im += fa[1][h->vi];
+            }
+            if (h->has_nw) {
+                sum_re += fa[0][h->nw->vi];
+                sum_im += fa[1][h->nw->vi];
+            } else {
+                sum_re += fa[0][h->vi];
+                sum_im += fa[1][h->vi];
+            }
+            if (h->has_nsw) {
+                sum_re += fa[0][h->nsw->vi];
+                sum_im += fa[1][h->nsw->vi];
+            } else {
+                sum_re += fa[0][h->vi];
+                sum_im += fa[1][h->vi];
+            }
+            if (h->has_nse) {
+                sum_re += fa[0][h->nse->vi];
+                sum_im += fa[1][h->nse->vi];
+            } else {
+                sum_re += fa[0][h->vi];
+                sum_im += fa[1][h->vi];
+            }
+
+            laplace[0][h->vi] = norm * sum_re;
+            laplace[1][h->vi] = norm * sum_im;
+        }
+    }
+
+    /*!
+     * Computes a divergence
      */
 #if 0
     void compute_divJ (vector<double>& fa, unsigned int i) {
@@ -531,6 +786,7 @@ public:
 #endif
     }
 
+#if 0
     /*!
      * Plot a field. If individual_scaling is true, then each map is
      * normalised individually, otherwise the group is normalised so
@@ -574,7 +830,7 @@ public:
             double mina = +1e7;
             // Determines min and max
 
-#pragma omp parallel for
+            #pragma omp parallel for
             for (unsigned int hi=0; hi<this->nhex; ++hi) {
                 Hex* h = this->hg->vhexen[hi];
                 if (h->onBoundary() == false) {
@@ -588,7 +844,7 @@ public:
 
             // Determine a colour from min, max and current value
             for (unsigned int i = 0; i<this->N; ++i) {
-#pragma omp parallel for
+                #pragma omp parallel for
                 for (unsigned int h=0; h<this->nhex; h++) {
                     norm_a[i][h] = fmin (fmax (((f[i][h]) - mina) * scalea, 0.0), 1.0);
                 }
@@ -704,6 +960,7 @@ public:
         }
         disp.redrawDisplay();
     }
+#endif
     //@} // Plotting code
 
 }; // RD_OrientPref

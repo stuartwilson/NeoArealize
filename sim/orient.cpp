@@ -53,6 +53,9 @@ int main (int argc, char **argv)
         cerr << "Exception initialising RD object: " << e.what() << endl;
     }
 
+    // How many iterations to compute?
+    unsigned int T = 1000;
+
     // Start the loop
     bool finished = false;
     while (!finished) {
@@ -63,17 +66,18 @@ int main (int argc, char **argv)
             cerr << "Caught exception calling RD.step(): " << e.what() << endl;
             finished = true;
         }
-
-        displays[0].resetDisplay (fix, eye, rot);
-        try {
-            RD.plot (displays);
-            // Save some frames
-            if (RD.stepCount % 100 == 0) {
-                //RD.saveStuff();
+#if 0
+        if (RD.stepCount % 100 == 0) {
+            displays[0].resetDisplay (fix, eye, rot);
+            try {
+                RD.plot (displays);
+            } catch (const exception& e) {
+                cerr << "Caught exception calling RD.plot(): " << e.what() << endl;
+                finished = true;
             }
-
-        } catch (const exception& e) {
-            cerr << "Caught exception calling RD.plot(): " << e.what() << endl;
+        }
+#endif
+        if (RD.stepCount > T) {
             finished = true;
         }
     }
