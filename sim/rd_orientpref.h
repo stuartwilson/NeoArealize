@@ -1,4 +1,3 @@
-#include "morph/display.h"
 #include "morph/tools.h"
 #include "morph/ReadCurves.h"
 #include "morph/HexGrid.h"
@@ -328,7 +327,7 @@ public:
      * Initialise HexGrid, variables and parameters. Carry out any
      * one-time computations required by the model.
      */
-    void init (vector<morph::Gdisplay>& displays, bool useSavedGenetics = false) {
+    void init (void) {
 
         // Create a HexGrid
         this->hg = new HexGrid (0.01, 3);
@@ -419,11 +418,11 @@ public:
      * Do a step through the model.
      */
     void step (void) {
-
+#ifdef DEBUG__
         stringstream fss;
         fss << this->logpath << "/pinwheel_step_" << stepCount << ".h5";
         HdfData data (fss.str());
-
+#endif
         if (this->stepCount % 100 == 0) {
             DBG ("System computed " << this->stepCount << " times so far...");
         }
@@ -434,7 +433,7 @@ public:
                                      //-0.5, 1.0,
                                      -0.005, 0.01,
                                      false, 100.0, 0.02);
-
+#ifdef DEBUG__
         data.add_double_vector ("/z_re", this->z[0]);
         data.add_double_vector ("/z_im", this->z[1]);
         data.add_double_vector ("/r_re", this->r[0]);
@@ -443,7 +442,7 @@ public:
         data.add_double_vector ("/sz_im", this->sz[1]);
         data.add_double_vector ("/sr_re", this->sr[0]);
         data.add_double_vector ("/sr_im", this->sr[1]);
-
+#endif
         // Compute afferent response
         #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
@@ -461,6 +460,7 @@ public:
             }
             this->aff[hi] = exp (this->oneOverTwoSigmaSquared * this->exparg[hi]);
         }
+#ifdef DEBUG__
         data.add_double_vector ("/exparg", this->exparg);
         data.add_double_vector ("/aff", this->aff);
 
@@ -468,14 +468,15 @@ public:
         data.add_double_vector ("/diff_z_im", this->diff_z[1]);
         data.add_double_vector ("/diff_r_re", this->diff_r[0]);
         data.add_double_vector ("/diff_r_im", this->diff_r[1]);
-
+#endif
         // Serial sum. Vector sum candidate?
         double affsum = 0;
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
             affsum += this->aff[hi];
         }
+#ifdef DEBUG__
         data.add_double ("/affsum", affsum);
-
+#endif
         // Parallel division-by
         #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
@@ -487,6 +488,7 @@ public:
             this->argu_r[1][hi] = this->aff[hi] * diff_r[1][hi];
         }
 
+#ifdef DEBUG__
         data.add_double_vector ("/argu_z_re", this->argu_z[0]);
         data.add_double_vector ("/argu_z_im", this->argu_z[1]);
         data.add_double_vector ("/argu_r_re", this->argu_r[0]);
@@ -498,18 +500,29 @@ public:
 
         this->integrate (this->argu_z, this->z, 0.05, true);
         this->integrate (this->argu_r, this->r, 0.05, false);
+#else
+        this->integrate (this->argu_z, this->z);
+        this->integrate (this->argu_r, this->r);
+#endif
 
         // pi for post integrate
+#ifdef DEBUG__
         data.add_double_vector ("/pi_z_re", this->z[0]);
         data.add_double_vector ("/pi_z_im", this->z[1]);
         data.add_double_vector ("/pi_r_re", this->r[0]);
         data.add_double_vector ("/pi_r_im", this->r[1]);
-
+#endif
         this->stepCount++;
     }
 
-    void integrate (array<vector<double>, 2>& E, array<vector<double>, 2>& x, double h_ = 0.05, bool first=false) {
+    //! Runge-Kutta integration:
+    void integrate (array<vector<double>, 2>& E, array<vector<double>, 2>& x, double h_ = 0.05
+#ifdef DEBUG__
+                    , bool first=false
+#endif
+        ) {
 
+#ifdef DEBUG__
         stringstream fss;
         // Hacky way of having two different file names for numerical debugging
         if (first) {
@@ -519,21 +532,23 @@ public:
         }
         HdfData data (fss.str());
         DBG("stepCount:" << stepCount);
-        // Runge-Kutta integration:
 
         data.add_double_vector ("/x_re", x[0]);
         data.add_double_vector ("/x_im", x[1]);
         data.add_double_vector ("/E_re", E[0]);
         data.add_double_vector ("/E_im", E[1]);
-
         DBG ("E_re[0]:" << E[0][0]);
+#endif
+
 
         double h2 = h_ * h_;
 
         this->compute_lapl_cmplx (x, lap);
+#ifdef DEBUG__
         DBG("lap_1_re[0]:" << lap[0][0]);
         data.add_double_vector ("/lap_1_re", lap[0]);
         data.add_double_vector ("/lap_1_im", lap[1]);
+#endif
         #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
             k1[0][h] = h_ * (E[0][h] + this->eta * lap[0][h]);
@@ -543,8 +558,10 @@ public:
         }
 
         this->compute_lapl_cmplx (q, lap);
+#ifdef DEBUG__
         data.add_double_vector ("/lap_2_re", lap[0]);
         data.add_double_vector ("/lap_2_im", lap[1]);
+#endif
         #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
             k2[0][h] = this->halfdt * h2 * (E[0][h] + this->eta * lap[0][h]);
@@ -554,8 +571,10 @@ public:
         }
 
         this->compute_lapl_cmplx (q, lap);
+#ifdef DEBUG__
         data.add_double_vector ("/lap_3_re", lap[0]);
         data.add_double_vector ("/lap_3_im", lap[1]);
+#endif
         #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
             k3[0][h] = this->halfdt * h2 * (E[0][h] + this->eta * lap[0][h]);
@@ -565,8 +584,10 @@ public:
         }
 
         this->compute_lapl_cmplx (q, lap);
+#ifdef DEBUG__
         data.add_double_vector ("/lap_4_re", lap[0]);
         data.add_double_vector ("/lap_4_im", lap[1]);
+#endif
         #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
             k4[0][h] = h2 * (E[0][h] + this->eta * lap[0][h]);
@@ -575,10 +596,13 @@ public:
             // Write final result on this loop back into x
             x[0][h] = x[0][h] + (k1[0][h] + 2.0*(k2[0][h]+k3[0][h]) + k4[0][h]) / 6.0;
             x[1][h] = x[1][h] + (k1[1][h] + 2.0*(k2[1][h]+k3[1][h]) + k4[1][h]) / 6.0;
+#ifdef DEBUG__
             if (h < 3) {
                 DBG("x[0][" << h << "]=" << x[0][h] << " x[1][" << h << "]=" << x[1][h]);
             }
+#endif
         }
+#ifdef DEBUG__
         data.add_double_vector ("/k1_re", k1[0]);
         data.add_double_vector ("/k1_im", k1[1]);
         data.add_double_vector ("/k2_re", k2[0]);
@@ -587,72 +611,7 @@ public:
         data.add_double_vector ("/k3_im", k3[1]);
         data.add_double_vector ("/k4_re", k4[0]);
         data.add_double_vector ("/k4_im", k4[1]);
-    }
-
-    /*!
-     * Examine the value in each Hex of the hexgrid of the scalar
-     * field f. If abs(f[h]) exceeds the size of dangerThresh, then
-     * output debugging information.
-     */
-    void debug_values (vector<double>& f, double dangerThresh) {
-        for (auto h : this->hg->hexen) {
-            if (abs(f[h.vi]) > dangerThresh) {
-                DBG ("Blow-up threshold exceeded at Hex.vi=" << h.vi << " ("<< h.ri <<","<< h.gi <<")" <<  ": " << f[h.vi]);
-                unsigned int wait = 0;
-                while (wait++ < 120) {
-                    usleep (1000000);
-                }
-            }
-        }
-    }
-
-    /*!
-     * 2D spatial integration of the function f. Result placed in gradf.
-     *
-     * For each Hex, work out the gradient in x and y directions
-     * using whatever neighbours can contribute to an estimate.
-     */
-    void spacegrad2D (vector<double>& f, array<vector<double>, 2>& gradf) {
-
-        // Note - East is positive x; North is positive y. Does this match how it's drawn in the display??
-        #pragma omp parallel for
-        for (unsigned int hi=0; hi<this->nhex; ++hi) {
-            Hex* h = this->hg->vhexen[hi];
-
-            gradf[0][h->vi] = 0.0;
-            gradf[1][h->vi] = 0.0;
-
-            // Find x gradient
-            if (h->has_ne && h->has_nw) {
-                gradf[0][h->vi] = (f[h->ne->vi] - f[h->nw->vi]) / ((double)h->d * 2.0);
-            } else if (h->has_ne) {
-                gradf[0][h->vi] = (f[h->ne->vi] - f[h->vi]) / (double)h->d;
-            } else if (h->has_nw) {
-                gradf[0][h->vi] = (f[h->vi] - f[h->nw->vi]) / (double)h->d;
-            } /*
-               * else zero gradient in x direction as no neighbours in
-               * those directions? Or possibly use the average of
-               * the gradient between the nw,ne and sw,se neighbours
-               */
-
-            // Find y gradient
-            if (h->has_nnw && h->has_nne && h->has_nsw && h->has_nse) {
-                // Full complement. Compute the mean of the nse->nne and nsw->nnw gradients
-                gradf[1][h->vi] = ((f[h->nne->vi] - f[h->nse->vi]) + (f[h->nnw->vi] - f[h->nsw->vi])) / (double)h->getV();
-
-            } else if (h->has_nnw && h->has_nne ) {
-                gradf[1][h->vi] = ( (f[h->nne->vi] + f[h->nnw->vi]) / 2.0 - f[h->vi]) / (double)h->getV();
-
-            } else if (h->has_nsw && h->has_nse) {
-                gradf[1][h->vi] = (f[h->vi] - (f[h->nse->vi] + f[h->nsw->vi]) / 2.0) / (double)h->getV();
-
-            } else if (h->has_nnw && h->has_nsw) {
-                gradf[1][h->vi] = (f[h->nnw->vi] - f[h->nsw->vi]) / (double)h->getTwoV();
-
-            } else if (h->has_nne && h->has_nse) {
-                gradf[1][h->vi] = (f[h->nne->vi] - f[h->nse->vi]) / (double)h->getTwoV();
-            } // else leave grady at 0
-        }
+#endif
     }
 
     /*!
@@ -714,10 +673,6 @@ public:
     void compute_lapl_cmplx (array<vector<double>, 2>& fa, array<vector<double>, 2>& laplace) {
 
         double norm  = 2.0 / (3.0 * this->d * this->d);
-        // DBG ("norm: " << norm); it's 6666.67
-
-        double sum_re_tot = 0.0;
-        double sum_im_tot = 0.0;
 
         #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
@@ -778,222 +733,7 @@ public:
 
             laplace[0][h->vi] = norm * sum_re;
             laplace[1][h->vi] = norm * sum_im;
-
-            // Just for debugging, will break in parallel
-            sum_re_tot += laplace[0][h->vi];
-            sum_im_tot += laplace[1][h->vi];
         }
-
-        DBG ("Real laplacian total: " << sum_re_tot);
-        DBG ("Imag laplacian total: " << sum_im_tot);
     }
-
-    /*!
-     * Plotting code
-     */
-    //@{
-    /*!
-     * Plot the system on @a disps
-     */
-    void plot (vector<morph::Gdisplay>& disps, bool savePngs = false) {
-
-        //this->plot_f (this->a, disps[2]);
-        //this->plot_contour (this->c, disps[4], 0.75);
-#if 0
-        if (savePngs) {
-            // a
-            stringstream ff1;
-            ff1 << this->logpath << "/a_";
-            ff1 << std::setw(5) << std::setfill('0') << frameN;
-            ff1 << ".png";
-            disps[2].saveImage (ff1.str());
-            // contours
-            stringstream ff3;
-            ff3 << this->logpath << "/cntr_";
-            ff3 << std::setw(5) << std::setfill('0') << frameN;
-            ff3 << ".png";
-            disps[4].saveImage (ff3.str());
-
-            frameN++;
-        }
-#endif
-    }
-
-#if 0
-    /*!
-     * Plot a field. If individual_scaling is true, then each map is
-     * normalised individually, otherwise the group is normalised so
-     * that maps can be compared alongside each other.
-     */
-    void plot_f (vector<vector<double> >& f, morph::Gdisplay& disp, bool individual_scaling=false) {
-        vector<double> fix(3, 0.0);
-        vector<double> eye(3, 0.0);
-        eye[2] = -0.4;
-        vector<double> rot(3, 0.0);
-
-        vector<vector<double> > norm_a;
-        this->resize_vector_vector (norm_a);
-        if (individual_scaling) {
-            // Copies data to plot out of the model
-            vector<double> maxa (5, -1e7);
-            vector<double> mina (5, +1e7);
-            // Determines min and max
-            for (auto h : this->hg->hexen) {
-                if (h.onBoundary() == false) {
-                    for (unsigned int i = 0; i<this->N; ++i) {
-                        if (f[i][h.vi]>maxa[i]) { maxa[i] = f[i][h.vi]; }
-                        if (f[i][h.vi]<mina[i]) { mina[i] = f[i][h.vi]; }
-                    }
-                }
-            }
-            vector<double> scalea (5, 0);
-            for (unsigned int i = 0; i<this->N; ++i) {
-                scalea[i] = 1.0 / (maxa[i]-mina[i]);
-            }
-
-            // Determine a colour from min, max and current value
-            for (unsigned int i = 0; i<this->N; ++i) {
-                for (unsigned int h=0; h<this->nhex; h++) {
-                    norm_a[i][h] = fmin (fmax (((f[i][h]) - mina[i]) * scalea[i], 0.0), 1.0);
-                }
-            }
-        } else {
-            // Copies data to plot out of the model
-            double maxa = -1e7;
-            double mina = +1e7;
-            // Determines min and max
-
-            #pragma omp parallel for
-            for (unsigned int hi=0; hi<this->nhex; ++hi) {
-                Hex* h = this->hg->vhexen[hi];
-                if (h->onBoundary() == false) {
-                    for (unsigned int i = 0; i<this->N; ++i) {
-                        if (f[i][h->vi]>maxa) { maxa = f[i][h->vi]; }
-                        if (f[i][h->vi]<mina) { mina = f[i][h->vi]; }
-                    }
-                }
-            }
-            double scalea = 1.0 / (maxa-mina);
-
-            // Determine a colour from min, max and current value
-            for (unsigned int i = 0; i<this->N; ++i) {
-                #pragma omp parallel for
-                for (unsigned int h=0; h<this->nhex; h++) {
-                    norm_a[i][h] = fmin (fmax (((f[i][h]) - mina) * scalea, 0.0), 1.0);
-                }
-            }
-        }
-
-        // Create an offset which we'll increment by the width of the
-        // map, starting from the left-most map (f[0])
-        float hgwidth = this->hg->getXmax()-this->hg->getXmin();
-        array<float,3> offset = { 2*(-hgwidth-(hgwidth/20)), 0.0f, 0.0f };
-
-        // Draw
-        disp.resetDisplay (fix, eye, rot);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            // Note: OpenGL isn't thread-safe, so no omp parallel for here.
-            for (auto h : this->hg->hexen) {
-                array<float,3> cl_a = morph::Tools::HSVtoRGB ((float)i/(float)this->N,
-                                                              norm_a[i][h.vi], 1.0);
-                disp.drawHex (h.position(), offset, (h.d/2.0f), cl_a);
-            }
-            offset[0] += hgwidth + (hgwidth/20);
-        }
-        disp.redrawDisplay();
-    }
-
-    void plot_contour (vector<vector<double> >& f, morph::Gdisplay& disp, double threshold) {
-
-        vector<double> fix(3, 0.0);
-        vector<double> eye(3, 0.0);
-        vector<double> rot(3, 0.0);
-
-        // Copies data to plot out of the model
-        vector<double> maxa (5, -1e7);
-        vector<double> mina (5, +1e7);
-
-        // Determines min and max
-        for (auto h : this->hg->hexen) {
-            if (h.onBoundary() == false) {
-                for (unsigned int i = 0; i<this->N; ++i) {
-                    if (f[i][h.vi]>maxa[i]) { maxa[i] = f[i][h.vi]; }
-                    if (f[i][h.vi]<mina[i]) { mina[i] = f[i][h.vi]; }
-                }
-            }
-        }
-
-        vector<double> scalea (5, 0);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            scalea[i] = 1.0 / (maxa[i]-mina[i]);
-        }
-
-        // Re-normalize
-        vector<vector<double> > norm_a;
-        this->resize_vector_vector (norm_a);
-        for (unsigned int i = 0; i<this->N; ++i) {
-            for (unsigned int h=0; h<this->nhex; h++) {
-                norm_a[i][h] = fmin (fmax (((f[i][h]) - mina[i]) * scalea[i], 0.0), 1.0);
-            }
-        }
-
-        // Draw
-        double c = threshold;
-        disp.resetDisplay (fix, eye, rot);
-        array<float,3> cl_blk = {0.0f, 0.0f, 0.0f};
-        array<float,3> zero_offset = {0.0f, 0.0f, 0.0f};
-
-        for (unsigned int i = 0; i<this->N; ++i) {
-            array<float,3> cl_b = morph::Tools::HSVtoRGB ((double)i/(double)(this->N),1.,1.);
-            for (auto h : this->hg->hexen) {
-                if (h.onBoundary() == false) {
-                    if (norm_a[i][h.vi]<c) {
-                        if (norm_a[i][h.ne->vi]>c && h.has_ne) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 0);
-                        }
-                        if (norm_a[i][h.nne->vi]>c && h.has_nne) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 1);
-                        }
-                        if (norm_a[i][h.nnw->vi]>c && h.has_nnw) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 2);
-                        }
-                        if (norm_a[i][h.nw->vi]>c && h.has_nw) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 3);
-                        }
-                        if (norm_a[i][h.nsw->vi]>c && h.has_nsw) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 4);
-                        }
-                        if (norm_a[i][h.nse->vi]>c && h.has_nse) {
-                            disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_b, 5);
-                        }
-                    }
-
-                } else { // h.onBoundary() is true
-
-                    if (!h.has_ne) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 0);
-                    }
-                    if (!h.has_nne) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 1);
-                    }
-                    if (!h.has_nnw) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 2);
-                    }
-                    if (!h.has_nw) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 3);
-                    }
-                    if (!h.has_nsw) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 4);
-                    }
-                    if (!h.has_nse) {
-                        disp.drawHexSeg (h.position(), zero_offset, (h.d/2.0f), cl_blk, 5);
-                    }
-                }
-            }
-        }
-        disp.redrawDisplay();
-    }
-#endif
-    //@} // Plotting code
 
 }; // RD_OrientPref

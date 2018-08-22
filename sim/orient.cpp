@@ -9,8 +9,8 @@ using namespace std;
 
 int main (int argc, char **argv)
 {
-    if (argc < 2) {
-        cerr << "\nUsage: ./build/sim/process w0\n\n";
+    if (argc < 1) {
+        cerr << "\nUsage: ./build/sim/orient";
         cerr << "Be sure to run from the base NeoArealize source directory.\n";
         return -1;
     }
@@ -21,26 +21,6 @@ int main (int argc, char **argv)
 
     cout << "First rand num for seed " << rseed << " is: " << morph::Tools::randDouble() << endl;
 
-    // Create some displays
-    vector<morph::Gdisplay> displays;
-    vector<double> fix(3, 0.0);
-    vector<double> eye(3, 0.0);
-    eye[2] = -0.4;
-    vector<double> rot(3, 0.0);
-
-    double rhoInit = 1.5;
-    string worldName(argv[1]);
-    string winTitle = worldName + ": window name";
-    displays.push_back (morph::Gdisplay (1020, 300, 100, 0, winTitle.c_str(), rhoInit, 0.0, 0.0));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
-    // SW - Contours
-    winTitle = worldName + ": contours";
-    displays.push_back (morph::Gdisplay (500, 500, 100, 900, winTitle.c_str(), rhoInit, 0.0, 0.0, displays[0].win));
-    displays.back().resetDisplay (fix, eye, rot);
-    displays.back().redrawDisplay();
-
     // Instantiate the model object
     RD_OrientPref RD;
 
@@ -50,7 +30,7 @@ int main (int argc, char **argv)
     // Call the init function, which can allocate variables and run
     // any pre-stepping computations.
     try {
-        RD.init (displays);
+        RD.init();
     } catch (const exception& e) {
         cerr << "Exception initialising RD object: " << e.what() << endl;
     }
@@ -68,22 +48,12 @@ int main (int argc, char **argv)
             cerr << "Caught exception calling RD.step(): " << e.what() << endl;
             finished = true;
         }
-#if 0
-        if (RD.stepCount % 100 == 0) {
-            displays[0].resetDisplay (fix, eye, rot);
-            try {
-                RD.plot (displays);
-            } catch (const exception& e) {
-                cerr << "Caught exception calling RD.plot(): " << e.what() << endl;
-                finished = true;
-            }
-        }
-#endif
         if (RD.stepCount > T) {
             finished = true;
         }
     }
 
+    // Save final state of RD system
     RD.saveState();
 
     return 0;
