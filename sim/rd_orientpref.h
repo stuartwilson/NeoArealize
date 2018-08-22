@@ -11,7 +11,7 @@
 #include <iomanip>
 #include <cmath>
 #ifdef __GLN__
-#include <omp.h>
+//#include <omp.h>
 #endif
 #include <unistd.h>
 
@@ -26,6 +26,7 @@ using std::stringstream;
 using std::cerr;
 using std::endl;
 using std::runtime_error;
+using std::exp;
 
 using morph::HexGrid;
 using morph::ReadCurves;
@@ -135,6 +136,11 @@ public:
     vector<double> aff;
 
     /*!
+     * exponential argument - a temporary result
+     */
+    vector<double> exparg;
+
+    /*!
      * Receptive field centre coordinates for neurons.
      */
     array<vector<double>, 2> r;
@@ -145,7 +151,7 @@ public:
 
 
     /*!
-     * Fields used during Runge-Kutta integration (see step_integrate)
+     * Fields used during Runge-Kutta integration (see integrate)
      */
     array<vector<double>, 2> q;
     array<vector<double>, 2> k1;
@@ -165,14 +171,9 @@ public:
     //@{
 
     /*!
-     * Threshold (<1) for identifying pinwheels
+     * Strength of lateral interactions.
      */
-    double thresh = 0.8;
-
-    /*!
-     * Strength of lateral interactions
-     */
-    double eta = 0.06;
+    double eta = 0.0006;
 
 private:
     /*!
@@ -365,6 +366,7 @@ public:
         this->resize_vector_field (this->diff_z);
 
         this->resize_scalar_field (this->aff);
+        this->resize_scalar_field (this->exparg);
 
         // Initialise z with noise
         this->noiseify_z_field (this->z, TWO_PI, false, 100.0, 0.02);
@@ -373,6 +375,13 @@ public:
         this->noiseify_vector_field (this->r,
                                      -0.005, 0.01,
                                      false, 100.0, 0.02);
+#if 0
+        // debugging shows that initial values are sensible and small.
+        string lp = this->logpath;
+        this->logpath = "./logs/tmp";
+        this->saveState();
+        this->logpath = lp;
+#endif
     }
 
     /*!
@@ -391,11 +400,12 @@ public:
      */
     void saveState (void) {
         string fname = this->logpath + "/pinwheel.h5";
-        cout << "Saving to file " << fname << endl;
         HdfData data (fname);
         // Save some variables
-        //data.add_array_vector_double_2 ("/z", this->z);
-        //data.add_array_vector_double_2 ("/r", this->z);
+        data.add_double_vector ("/z_re", this->z[0]);
+        data.add_double_vector ("/z_im", this->z[1]);
+        data.add_double_vector ("/r_re", this->r[0]);
+        data.add_double_vector ("/r_im", this->r[1]);
         this->saveHexPositions (data);
     }
     //@} // HDF5
@@ -410,84 +420,131 @@ public:
      */
     void step (void) {
 
-        this->stepCount++;
+        stringstream fss;
+        fss << this->logpath << "/pinwheel_step_" << stepCount << ".h5";
+        HdfData data (fss.str());
 
         if (this->stepCount % 100 == 0) {
             DBG ("System computed " << this->stepCount << " times so far...");
         }
 
         // Generate input patter
-        this->noiseify_z_field (this->sz, 2.0, false, 100.0, 0.02);
+        this->noiseify_z_field (this->sz, 2.0, false, 100.0, 0.02); // here?
         this->noiseify_vector_field (this->sr,
-                                     -0.5, 1.0,
+                                     //-0.5, 1.0,
+                                     -0.005, 0.01,
                                      false, 100.0, 0.02);
+
+        data.add_double_vector ("/z_re", this->z[0]);
+        data.add_double_vector ("/z_im", this->z[1]);
+        data.add_double_vector ("/r_re", this->r[0]);
+        data.add_double_vector ("/r_im", this->r[1]);
+        data.add_double_vector ("/sz_re", this->sz[0]);
+        data.add_double_vector ("/sz_im", this->sz[1]);
+        data.add_double_vector ("/sr_re", this->sr[0]);
+        data.add_double_vector ("/sr_im", this->sr[1]);
 
         // Compute afferent response
         #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
-            //Hex* h = this->hg->vhexen[hi];
+
             this->diff_r[0][hi] = this->sr[0][hi] - this->r[0][hi];
             this->diff_r[1][hi] = this->sr[1][hi] - this->r[1][hi];
             this->diff_z[0][hi] = this->sz[0][hi] - this->z[0][hi];
             this->diff_z[1][hi] = this->sz[1][hi] - this->z[1][hi];
-#if 0
-            // magnitudes of rdiff and zdiff
-            double rdmag = sqrt (diff_r[0][hi]*diff_r[0][hi] + diff_r[1][hi]*diff_r[1][hi]);
-            double zdmag = sqrt (diff_z[0][hi]*diff_z[0][hi] + diff_z[1][hi]*diff_z[1][hi]);
-            // squared magnitudes of rdiff and zdiff:
-            double rdmagsq = rdmag * rdmag;
-            double zdmagsq = zdmag * zdmag;
-#endif
-#if 0
-            double rdmagsq = diff_r[0][hi]*diff_r[0][hi] + diff_r[1][hi]*diff_r[1][hi];
-            double zdmagsq = diff_z[0][hi]*diff_z[0][hi] + diff_z[1][hi]*diff_z[1][hi];
-            this->aff[hi] = exp (this->oneOverTwoSigmaSquared * (-rdmagsq - zdmagsq));
-#endif
+
             // Minimal computation version:
-            double exparg = - diff_r[0][hi]*diff_r[0][hi] - diff_r[1][hi]*diff_r[1][hi] - diff_z[0][hi]*diff_z[0][hi] - diff_z[1][hi]*diff_z[1][hi];
-            this->aff[hi] = exp (this->oneOverTwoSigmaSquared * exparg);
+            this->exparg[hi] = - diff_r[0][hi]*diff_r[0][hi] - diff_r[1][hi]*diff_r[1][hi] - diff_z[0][hi]*diff_z[0][hi] - diff_z[1][hi]*diff_z[1][hi];
+
+            if (this->oneOverTwoSigmaSquared * this->exparg[hi] < -708.4 && hi < 5) {
+                cerr << "Should get an underflow into this->aff[" << hi << "]" << endl;
+            }
+            this->aff[hi] = exp (this->oneOverTwoSigmaSquared * this->exparg[hi]);
         }
-        // Serial sum:
+        data.add_double_vector ("/exparg", this->exparg);
+        data.add_double_vector ("/aff", this->aff);
+
+        data.add_double_vector ("/diff_z_re", this->diff_z[0]);
+        data.add_double_vector ("/diff_z_im", this->diff_z[1]);
+        data.add_double_vector ("/diff_r_re", this->diff_r[0]);
+        data.add_double_vector ("/diff_r_im", this->diff_r[1]);
+
+        // Serial sum. Vector sum candidate?
         double affsum = 0;
-        // Vector sum candidate!
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
             affsum += this->aff[hi];
         }
+        data.add_double ("/affsum", affsum);
+
         // Parallel division-by
         #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
-            this->aff[hi] /= affsum;
-            // Prepare args for step_integrate. Vector multiplication candidate!
+            this->aff[hi] /= affsum; // hmm
+            // Prepare args for integrate. Vector multiplication candidate!
             this->argu_z[0][hi] = this->aff[hi] * diff_z[0][hi];
             this->argu_z[1][hi] = this->aff[hi] * diff_z[1][hi];
             this->argu_r[0][hi] = this->aff[hi] * diff_r[0][hi];
             this->argu_r[1][hi] = this->aff[hi] * diff_r[1][hi];
         }
 
-        this->step_integrate (this->argu_z, this->z);
-        this->step_integrate (this->argu_r, this->r);
+        data.add_double_vector ("/argu_z_re", this->argu_z[0]);
+        data.add_double_vector ("/argu_z_im", this->argu_z[1]);
+        data.add_double_vector ("/argu_r_re", this->argu_r[0]);
+        data.add_double_vector ("/argu_r_im", this->argu_r[1]);
+
+        double norm  = 2.0 / (3.0 * this->d * this->d);
+        data.add_double ("/norm", norm);
+        data.add_double ("/d", this->d);
+
+        this->integrate (this->argu_z, this->z, 0.05, true);
+        this->integrate (this->argu_r, this->r, 0.05, false);
+
+        // pi for post integrate
+        data.add_double_vector ("/pi_z_re", this->z[0]);
+        data.add_double_vector ("/pi_z_im", this->z[1]);
+        data.add_double_vector ("/pi_r_re", this->r[0]);
+        data.add_double_vector ("/pi_r_im", this->r[1]);
+
+        this->stepCount++;
     }
 
-    void step_integrate (array<vector<double>, 2>& E, array<vector<double>, 2>& x, double h = 0.05) {
+    void integrate (array<vector<double>, 2>& E, array<vector<double>, 2>& x, double h_ = 0.05, bool first=false) {
 
+        stringstream fss;
+        // Hacky way of having two different file names for numerical debugging
+        if (first) {
+            fss << this->logpath << "/pinwheel_intz_step_" << stepCount << ".h5";
+        } else {
+            fss << this->logpath << "/pinwheel_intr_step_" << stepCount << ".h5";
+        }
+        HdfData data (fss.str());
+        DBG("stepCount:" << stepCount);
         // Runge-Kutta integration:
 
-        // If necessary:
-        //this->zero_vector_field (q);
-        //this->zero_vector_field (k1);
+        data.add_double_vector ("/x_re", x[0]);
+        data.add_double_vector ("/x_im", x[1]);
+        data.add_double_vector ("/E_re", E[0]);
+        data.add_double_vector ("/E_im", E[1]);
 
-        double h2 = h * h;
+        DBG ("E_re[0]:" << E[0][0]);
+
+        double h2 = h_ * h_;
 
         this->compute_lapl_cmplx (x, lap);
+        DBG("lap_1_re[0]:" << lap[0][0]);
+        data.add_double_vector ("/lap_1_re", lap[0]);
+        data.add_double_vector ("/lap_1_im", lap[1]);
         #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
-            k1[0][h] = h * (E[0][h] + this->eta * lap[0][h]);
-            k1[1][h] = h * (E[1][h] + this->eta * lap[1][h]);
+            k1[0][h] = h_ * (E[0][h] + this->eta * lap[0][h]);
+            k1[1][h] = h_ * (E[1][h] + this->eta * lap[1][h]);
             q[0][h] = x[0][h] + k1[0][h] * this->halfdt;
             q[1][h] = x[1][h] + k1[1][h] * this->halfdt;
         }
 
         this->compute_lapl_cmplx (q, lap);
+        data.add_double_vector ("/lap_2_re", lap[0]);
+        data.add_double_vector ("/lap_2_im", lap[1]);
         #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
             k2[0][h] = this->halfdt * h2 * (E[0][h] + this->eta * lap[0][h]);
@@ -497,6 +554,8 @@ public:
         }
 
         this->compute_lapl_cmplx (q, lap);
+        data.add_double_vector ("/lap_3_re", lap[0]);
+        data.add_double_vector ("/lap_3_im", lap[1]);
         #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
             k3[0][h] = this->halfdt * h2 * (E[0][h] + this->eta * lap[0][h]);
@@ -506,6 +565,8 @@ public:
         }
 
         this->compute_lapl_cmplx (q, lap);
+        data.add_double_vector ("/lap_4_re", lap[0]);
+        data.add_double_vector ("/lap_4_im", lap[1]);
         #pragma omp parallel for
         for (unsigned int h=0; h<this->nhex; ++h) {
             k4[0][h] = h2 * (E[0][h] + this->eta * lap[0][h]);
@@ -514,7 +575,18 @@ public:
             // Write final result on this loop back into x
             x[0][h] = x[0][h] + (k1[0][h] + 2.0*(k2[0][h]+k3[0][h]) + k4[0][h]) / 6.0;
             x[1][h] = x[1][h] + (k1[1][h] + 2.0*(k2[1][h]+k3[1][h]) + k4[1][h]) / 6.0;
+            if (h < 3) {
+                DBG("x[0][" << h << "]=" << x[0][h] << " x[1][" << h << "]=" << x[1][h]);
+            }
         }
+        data.add_double_vector ("/k1_re", k1[0]);
+        data.add_double_vector ("/k1_im", k1[1]);
+        data.add_double_vector ("/k2_re", k2[0]);
+        data.add_double_vector ("/k2_im", k2[1]);
+        data.add_double_vector ("/k3_re", k3[0]);
+        data.add_double_vector ("/k3_im", k3[1]);
+        data.add_double_vector ("/k4_re", k4[0]);
+        data.add_double_vector ("/k4_im", k4[1]);
     }
 
     /*!
@@ -590,7 +662,8 @@ public:
      */
     void compute_lapl (vector<double>& fa, vector<double>& laplace) {
 
-        double norm  = (2) / (3 * this->d * this->d); // SW: double-check the factor 2 here?
+        // The normalisation comes from the area of the hex. See methods_notes.pdf.
+        double norm  = 2.0 / (3.0 * this->d * this->d);
 
         #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
@@ -640,7 +713,11 @@ public:
      */
     void compute_lapl_cmplx (array<vector<double>, 2>& fa, array<vector<double>, 2>& laplace) {
 
-        double norm  = (2) / (3 * this->d * this->d); // SW: double-check the factor 2 here?
+        double norm  = 2.0 / (3.0 * this->d * this->d);
+        // DBG ("norm: " << norm); it's 6666.67
+
+        double sum_re_tot = 0.0;
+        double sum_im_tot = 0.0;
 
         #pragma omp parallel for
         for (unsigned int hi=0; hi<this->nhex; ++hi) {
@@ -654,7 +731,13 @@ public:
                 sum_re += fa[0][h->ne->vi];
                 sum_im += fa[1][h->ne->vi];
             } else {
-                sum_re += fa[0][h->vi]; // A ghost neighbour-east with same value as Hex_0
+                sum_re += fa[0][h->vi]; // A ghost neighbour-east with
+                                        // same value as Hex_0 - this
+                                        // is therefore no-flux
+                                        // boundary condition. Not
+                                        // quite the same as the
+                                        // original model. FIXME
+                                        // perhaps.
                 sum_im += fa[1][h->vi];
             }
             if (h->has_nne) {
@@ -695,64 +778,15 @@ public:
 
             laplace[0][h->vi] = norm * sum_re;
             laplace[1][h->vi] = norm * sum_im;
+
+            // Just for debugging, will break in parallel
+            sum_re_tot += laplace[0][h->vi];
+            sum_im_tot += laplace[1][h->vi];
         }
+
+        DBG ("Real laplacian total: " << sum_re_tot);
+        DBG ("Imag laplacian total: " << sum_im_tot);
     }
-
-    /*!
-     * Computes a divergence
-     */
-#if 0
-    void compute_divJ (vector<double>& fa, unsigned int i) {
-
-        // Three terms to compute; see Eq. 14 in methods_notes.pdf
-
-        // Compute gradient of a_i(x), for use computing the third term, below.
-        this->spacegrad2D (fa, this->grad_a[i]);
-
-        #pragma omp parallel for
-        for (unsigned int hi=0; hi<this->nhex; ++hi) {
-
-            Hex* h = this->hg->vhexen[hi];
-            // 1. The D Del^2 a_i term
-            // Compute the sum around the neighbours
-            double thesum = -6 * fa[h->vi];
-            if (h->has_ne) {
-                thesum += fa[h->ne->vi];
-            } else {
-                // Apply boundary condition
-            }
-            if (h->has_nne) {
-                thesum += fa[h->nne->vi];
-            } else {
-                thesum += fa[h->vi]; // A ghost neighbour-east with same value as Hex_0
-            }
-            if (h->has_nnw) {
-                thesum += fa[h->nnw->vi];
-            } else {
-                thesum += fa[h->vi];
-            }
-            if (h->has_nw) {
-                thesum += fa[h->nw->vi];
-            } else {
-                thesum += fa[h->vi];
-            }
-            if (h->has_nsw) {
-                thesum += fa[h->nsw->vi];
-            } else {
-                thesum += fa[h->vi];
-            }
-            if (h->has_nse) {
-                thesum += fa[h->nse->vi];
-            } else {
-                thesum += fa[h->vi];
-            }
-            // Multiply bu 2D/3d^2
-            double term1 = (this->D * 2) / (3 * this->d * this->d) * thesum;
-
-            this->divJ[i][h->vi] = term1;
-        }
-    }
-#endif
 
     /*!
      * Plotting code
@@ -765,7 +799,6 @@ public:
 
         //this->plot_f (this->a, disps[2]);
         //this->plot_contour (this->c, disps[4], 0.75);
-
 #if 0
         if (savePngs) {
             // a

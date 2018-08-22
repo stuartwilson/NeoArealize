@@ -19,6 +19,8 @@ int main (int argc, char **argv)
     int rseed = 1;
     srand(rseed);
 
+    cout << "First rand num for seed " << rseed << " is: " << morph::Tools::randDouble() << endl;
+
     // Create some displays
     vector<morph::Gdisplay> displays;
     vector<double> fix(3, 0.0);
@@ -54,7 +56,7 @@ int main (int argc, char **argv)
     }
 
     // How many iterations to compute?
-    unsigned int T = 1000;
+    unsigned int T = 100; // Care - while debugging h5 files are being created, with T=10000 30 GB of logs will be created!
 
     // Start the loop
     bool finished = false;
@@ -81,6 +83,8 @@ int main (int argc, char **argv)
             finished = true;
         }
     }
+
+    RD.saveState();
 
     return 0;
 };

@@ -1,7 +1,7 @@
 log*.txt
 w*
 c_*
-factorexpression.h5
+*.h5
 *.png
 *.avi
 *.mpg
